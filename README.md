@@ -5,19 +5,19 @@
 [![Platform: Cross-Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg?style=flat-square)](#)
 
 **This** is a Basic Version AI-powered IDE built for modern developers. Featuring the sophisticated **Oxocarbon** theme and an offline-first architecture, CodeX delivers a professional, distraction-free environment for high-performance development.
-**Offical CodeBase of CodeX build on top of vscode is here [Code](https://github.com/Suryanshu-Nabheet/CodeX).**
+**Official CodeBase of CodeX built on top of vscode is here [Code](https://github.com/Suryanshu-Nabheet/CodeX).**
 
 ---
 
 <div align="center">
 
-![Welcome Screen](./assets/Demo/Welcome_Screen.png)
+![Welcome Screen](./assets/demo/Welcome_Screen.png)
 
 </div>
 
 <div align="center">
 
-![Coding Screen 1](./assets/Demo/Coding_Screen.png)
+![Coding Screen 1](./assets/demo/Coding_Screen.png)
 
 </div>
 
@@ -75,8 +75,9 @@ git clone https://github.com/Suryanshu-Nabheet/CodeX.git
 cd CodeX
 
 # Run setup
-./setup.sh  # macOS/Linux
-.\setup.ps1  # Windows
+./scripts/setup.sh       # macOS/Linux
+.\scripts\setup.ps1      # Windows
+# or: npm run setup / npm run setup:win
 
 # Launch CodeX
 npm start

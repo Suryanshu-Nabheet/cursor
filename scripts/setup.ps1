@@ -1,7 +1,10 @@
 # CodeX IDE Setup Script for Windows
-# This script sets up all necessary dependencies for CodeX IDE
+# Run from anywhere: .\scripts\setup.ps1
 
 $ErrorActionPreference = "Stop"
+
+$Root = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+Set-Location $Root
 
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host "  CodeX IDE Setup - Windows" -ForegroundColor Cyan
@@ -23,11 +26,10 @@ function Print-Info {
     Write-Host "ℹ $Message" -ForegroundColor Yellow
 }
 
-# Check if Node.js is installed
 try {
     $nodeVersion = node -v
     $nodeMajorVersion = [int]($nodeVersion -replace 'v(\d+)\..*', '$1')
-    
+
     if ($nodeMajorVersion -lt 16) {
         Print-Error "Node.js version must be 16 or higher. Current version: $nodeVersion"
         exit 1
@@ -39,7 +41,6 @@ try {
     exit 1
 }
 
-# Check if npm is installed
 try {
     $npmVersion = npm -v
     Print-Success "npm $npmVersion detected"
@@ -48,7 +49,6 @@ try {
     exit 1
 }
 
-# Check if git is installed
 try {
     $gitVersion = git --version
     Print-Success "$gitVersion detected"
@@ -57,12 +57,10 @@ try {
     exit 1
 }
 
-# Clean old builds
 Print-Info "Cleaning old build artifacts..."
 Remove-Item -Path ".webpack", "dist", "out" -Recurse -ErrorAction SilentlyContinue
 Print-Success "Cleaned old builds"
 
-# Install dependencies
 Print-Info "Installing npm dependencies..."
 try {
     npm ci
@@ -80,22 +78,23 @@ try {
     exit 1
 }
 
-# Create LSP directory structure
 Print-Info "Setting up Language Server Protocol (LSP) directory..."
 if (-not (Test-Path "lsp")) {
     New-Item -ItemType Directory -Path "lsp" -Force | Out-Null
 }
 
-# Create .env file if it doesn't exist
 if (-not (Test-Path ".env")) {
-    Print-Info "Creating .env file from template..."
-    Copy-Item ".env.example" ".env"
-    Print-Success ".env file created"
+    if (Test-Path ".env.example") {
+        Print-Info "Creating .env file from template..."
+        Copy-Item ".env.example" ".env"
+        Print-Success ".env file created"
+    } else {
+        Print-Info "No .env.example found; skipping .env creation"
+    }
 } else {
     Print-Info ".env file already exists"
 }
 
-# Setup complete
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
 Print-Success "CodeX IDE setup completed successfully!"

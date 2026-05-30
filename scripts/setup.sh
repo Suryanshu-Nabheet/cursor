@@ -1,22 +1,23 @@
 #!/bin/bash
 
 # CodeX IDE Setup Script for macOS/Linux
-# This script sets up all necessary dependencies for CodeX IDE
+# Run from anywhere: ./scripts/setup.sh
 
-set -e  # Exit on error
+set -e
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
 echo "================================================"
 echo "  CodeX IDE Setup - macOS/Linux"
 echo "================================================"
 echo ""
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Function to print colored output
 print_success() {
     echo -e "${GREEN}✓ $1${NC}"
 }
@@ -29,7 +30,6 @@ print_info() {
     echo -e "${YELLOW}ℹ $1${NC}"
 }
 
-# Check if Node.js is installed
 if ! command -v node &> /dev/null; then
     print_error "Node.js is not installed!"
     echo "Please install Node.js 16 or higher from https://nodejs.org/"
@@ -43,26 +43,22 @@ if [ "$NODE_VERSION" -lt 16 ]; then
 fi
 print_success "Node.js $(node -v) detected"
 
-# Check if npm is installed
 if ! command -v npm &> /dev/null; then
     print_error "npm is not installed!"
     exit 1
 fi
 print_success "npm $(npm -v) detected"
 
-# Check if git is installed
 if ! command -v git &> /dev/null; then
     print_error "git is not installed!"
     exit 1
 fi
 print_success "git $(git --version | awk '{print $3}') detected"
 
-# Clean old builds
 print_info "Cleaning old build artifacts..."
 rm -rf .webpack dist out
 print_success "Cleaned old builds"
 
-# Install dependencies
 print_info "Installing npm dependencies..."
 if npm ci; then
     print_success "Dependencies installed successfully"
@@ -74,20 +70,21 @@ else
     exit 1
 fi
 
-# Create LSP directory structure
 print_info "Setting up Language Server Protocol (LSP) directory..."
 mkdir -p lsp
 
-# Create .env file if it doesn't exist
 if [ ! -f .env ]; then
-    print_info "Creating .env file from template..."
-    cp .env.example .env
-    print_success ".env file created"
+    if [ -f .env.example ]; then
+        print_info "Creating .env file from template..."
+        cp .env.example .env
+        print_success ".env file created"
+    else
+        print_info "No .env.example found; skipping .env creation"
+    fi
 else
     print_info ".env file already exists"
 fi
 
-# Setup complete
 echo ""
 echo "================================================"
 print_success "CodeX IDE setup completed successfully!"

@@ -30,15 +30,12 @@ jobs:
 
             - name: Setup macOS/linux
               if: ${{ matrix.os != 'windows-latest' }}
-              run: ./setup.sh
+              run: bash scripts/setup.sh
 
             - name: Setup windows
               if: ${{ matrix.os == 'windows-latest' }}
               shell: pwsh
-              run: ./setup.ps1
-
-            - name: Install dependencies
-              run: npm ci
+              run: ./scripts/setup.ps1
 
             - name: Check formatting
               if: ${{ matrix.os != 'windows-latest' }}

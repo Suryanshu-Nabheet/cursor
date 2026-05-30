@@ -21,7 +21,7 @@ CodeX is a premium product. We maintain high standards for all contributions:
 2.  **Clone** your fork: `git clone https://github.com/YOUR_USERNAME/CodeX.git`
 3.  **Configure** upstream: `git remote add upstream https://github.com/Suryanshu-Nabheet/CodeX.git`
 4.  **Install** dependencies: `npm install`
-5.  **Initialize** build tools: `./setup.sh` (macOS/Linux) or `.\setup.ps1` (Windows)
+5.  **Initialize** build tools: `./scripts/setup.sh` (macOS/Linux), `.\scripts\setup.ps1` (Windows), or `npm run setup`
 
 ---
 

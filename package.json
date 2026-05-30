@@ -18,7 +18,9 @@
         "make": "electron-forge make",
         "package": "electron-forge package",
         "precommit": "pretty-quick --staged",
-        "prepare": "cd .. && husky install .husky",
+        "prepare": "husky install",
+        "setup": "bash scripts/setup.sh",
+        "setup:win": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
         "start": "electron-forge start",
         "test": "jest"
     },

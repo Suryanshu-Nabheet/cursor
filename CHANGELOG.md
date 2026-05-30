@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### 🧹 Engineering cleanup
 
+-   **Scripts folder**: Moved setup scripts from repo root into `scripts/` for clearer project layout.
 -   **Full Codebase Audit**: Removed legacy "CodeX" references and experimental code.
 -   **Lint Perfection**: Resolved all outstanding lint warnings and corrected unused variable identifiers.
 -   **Documentation Refresh**: Overhauled README, CONTRIBUTING, and LICENSE files for professional standards.
