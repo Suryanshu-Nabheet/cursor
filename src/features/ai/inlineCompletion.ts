@@ -1,25 +1,18 @@
 /**
- * AI Inline Completion — Copilot-style fill-in-the-middle completions.
+ * Agentic AI inline completion — FIM-style, provider-aware, context-rich.
  */
 import { EditorView } from '@codemirror/view'
 import { getActiveProviderAPIKey } from './apiKeyUtils'
 import { streamAIResponse, AIProviderConfig, AIProvider } from './providers'
+import {
+    buildAgenticContext,
+    buildAgenticPrompt,
+    AGENTIC_SYSTEM_PROMPT,
+    getViewFilePath,
+} from './agenticCompletion'
 import { store } from '../../app/store'
 import { Settings } from '../window/state'
 import { getLanguageFromFilename } from '../extensions/utils'
-import { getPathForFileId } from '../window/fileUtils'
-import { getFocusedTab } from '../selectors'
-
-const SYSTEM_PROMPT = `You are an expert code completion engine embedded in an IDE.
-Complete the code at the cursor position.
-
-Rules:
-- Output ONLY the code to insert at the cursor — no markdown, no fences, no explanation
-- Match the file's style, indentation, naming, and patterns exactly
-- Continue naturally from the cursor; never repeat code already before the cursor
-- Prefer concise, accurate completions (usually 1–8 lines)
-- Stop at a natural boundary (end of statement, closing brace, blank line)
-- If completion is impossible or unsafe, output nothing`
 
 export interface InlineCompletionContext {
     prefix: string
@@ -42,13 +35,6 @@ export function isInlineCompletionEnabled(settings: Settings): boolean {
     return false
 }
 
-export function getActiveFilePath(): string {
-    const state = store.getState()
-    const tab = getFocusedTab(state)
-    if (!tab?.fileId) return 'untitled'
-    return getPathForFileId(state.global, tab.fileId) || 'untitled'
-}
-
 export function extractInlineCompletionContext(
     view: EditorView,
     filepath?: string
@@ -64,17 +50,15 @@ export function extractInlineCompletionContext(
     const indent = indentMatch?.[1] ?? ''
 
     const startLine = line.number
-    const prefixFrom = state.doc.line(Math.max(1, startLine - 80)).from
+    const prefixFrom = state.doc.line(Math.max(1, startLine - 120)).from
     const suffixTo = state.doc.line(
-        Math.min(state.doc.lines, startLine + 30)
+        Math.min(state.doc.lines, startLine + 40)
     ).to
 
     const prefix = state.doc.sliceString(prefixFrom, pos)
     const suffix = state.doc.sliceString(pos, suffixTo)
 
-    if (prefix.trim().length < 1 && suffix.trim().length < 1) return null
-
-    const path = filepath || getActiveFilePath()
+    const path = filepath || getViewFilePath(view)
     const language = getLanguageFromFilename(path)
 
     return {
@@ -88,6 +72,7 @@ export function extractInlineCompletionContext(
     }
 }
 
+/** Light sanitization — keeps partial stream visible; only strips obvious junk */
 export function sanitizeCompletion(
     raw: string,
     context: InlineCompletionContext
@@ -98,92 +83,47 @@ export function sanitizeCompletion(
         .replace(/^\uFEFF/, '')
         .replace(/^```[\w]*\n?/, '')
         .replace(/\n?```\s*$/, '')
-        .replace(/<\|fim_(?:prefix|suffix|middle)\|>/g, '')
+        .replace(/<\|fim_(?:prefix|suffix|middle)\|>/gi, '')
+        .replace(/<<<?(?:FIM|CODE)_[A-Z_]+>>>?/gi, '')
 
+    // Drop a single leading prose line only when multiple lines exist
     const lines = text.split('\n')
-    while (
-        lines.length > 1 &&
-        lines[0].trim() &&
-        !looksLikeCodeLine(lines[0], context.language)
-    ) {
+    if (lines.length > 1 && lines[0].trim() && !isLikelyCode(lines[0])) {
         lines.shift()
+        text = lines.join('\n')
     }
-    text = lines.join('\n')
 
-    const codeLines = text.split('\n')
-    const kept: string[] = []
-    for (const line of codeLines) {
-        if (
-            kept.length > 0 &&
-            line.trim() === '' &&
-            kept[kept.length - 1]?.trim() === ''
-        ) {
-            break
-        }
-        if (
-            kept.length >= 3 &&
-            line.trim() &&
-            !looksLikeCodeLine(line, context.language) &&
-            !line.startsWith(context.indent)
-        ) {
-            break
-        }
-        kept.push(line)
+    text = text.trimEnd()
+
+    // Strip duplicate of what's already typed on this line
+    if (context.linePrefix && text.startsWith(context.linePrefix)) {
+        text = text.slice(context.linePrefix.length)
     }
-    text = kept.join('\n').trimEnd()
 
+    // Ensure first line respects cursor indent when mid-block
     if (text && context.indent && !text.startsWith(context.indent)) {
-        const firstLine = text.split('\n')[0]
-        if (firstLine.trim() && !/^[}\]\)]/.test(firstLine.trim())) {
-            text = context.indent + firstLine.trimStart() + text.slice(firstLine.length)
+        const first = text.split('\n')[0]
+        if (first.trim() && !/^[}\]\);]/.test(first.trim())) {
+            text = context.indent + first.trimStart() + text.slice(first.length)
         }
     }
 
-    const typed = context.linePrefix
-    if (typed && text.startsWith(typed)) {
-        text = text.slice(typed.length)
-    } else if (typed.trimEnd()) {
-        const trimmedTyped = typed.trimEnd()
-        if (text.startsWith(trimmedTyped)) {
-            text = text.slice(trimmedTyped.length)
-        }
-    }
-
-    if (text.length > 1200) {
-        text = text.slice(0, 1200)
-        const lastNewline = text.lastIndexOf('\n')
-        if (lastNewline > 200) text = text.slice(0, lastNewline)
+    if (text.length > 2000) {
+        text = text.slice(0, 2000)
+        const nl = text.lastIndexOf('\n')
+        if (nl > 300) text = text.slice(0, nl)
     }
 
     return text
 }
 
-function looksLikeCodeLine(line: string, _language: string): boolean {
+function isLikelyCode(line: string): boolean {
     const t = line.trim()
     if (!t) return true
-    if (/^(import|export|const|let|var|function|class|interface|type|return|if|for|while|switch|case|async|await|public|private|protected|def|fn|use|package|#include)\b/.test(t)) {
-        return true
-    }
-    if (/^[{\[\(]/.test(t) || /[;\{\}\[\]\),]$/.test(t)) return true
-    if (/^\s*(\/\/|\/\*|#|--|\*)/.test(line)) return true
+    if (/^(\/\/|\/\*|#|--|\*|\/\/\/)/.test(t)) return true
+    if (/^[a-zA-Z_$@<>\[\(]/.test(t)) return true
     if (/^\s+\S/.test(line)) return true
-    if (/^[a-zA-Z_$][\w$]*\s*[=\(:]/.test(t)) return true
     return false
-}
-
-function buildUserPrompt(ctx: InlineCompletionContext): string {
-    return `File: ${ctx.filepath}
-Language: ${ctx.language}
-
-<<<CODE_BEFORE_CURSOR>>>
-${ctx.prefix}
-<<<END_BEFORE>>>
-
-<<<CODE_AFTER_CURSOR>>>
-${ctx.suffix}
-<<<END_AFTER>>>
-
-Insert only the missing code at the cursor (between BEFORE and AFTER):`
 }
 
 async function buildProviderConfig(
@@ -204,6 +144,7 @@ async function buildProviderConfig(
 class InlineCompletionService {
     private abortController: AbortController | null = null
     private activeRequestId = 0
+    lastError: string | null = null
 
     cancel() {
         this.abortController?.abort()
@@ -211,10 +152,12 @@ class InlineCompletionService {
     }
 
     async *stream(
+        view: EditorView,
         context: InlineCompletionContext,
         externalSignal?: AbortSignal
     ): AsyncGenerator<string, string, unknown> {
         this.cancel()
+        this.lastError = null
         const requestId = ++this.activeRequestId
         const controller = new AbortController()
         this.abortController = controller
@@ -225,19 +168,23 @@ class InlineCompletionService {
         try {
             const settings = store.getState().settingsState.settings
             const provider = await buildProviderConfig(settings)
-            if (!provider) return ''
+            if (!provider) {
+                this.lastError = 'No AI provider configured'
+                return ''
+            }
 
+            const agentic = buildAgenticContext(view, context)
             const messages = [
-                { role: 'system' as const, content: SYSTEM_PROMPT },
-                { role: 'user' as const, content: buildUserPrompt(context) },
+                { role: 'system' as const, content: AGENTIC_SYSTEM_PROMPT },
+                { role: 'user' as const, content: buildAgenticPrompt(agentic) },
             ]
 
-            const maxTokens = Number(settings.inlineCompletionMaxTokens ?? 256)
+            const maxTokens = Number(settings.inlineCompletionMaxTokens ?? 512)
             let accumulated = ''
             let lastYielded = ''
 
             for await (const chunk of streamAIResponse(provider, messages, {
-                temperature: 0.15,
+                temperature: 0.12,
                 maxTokens,
                 signal: controller.signal,
             })) {
@@ -257,9 +204,19 @@ class InlineCompletionService {
             if (final && final !== lastYielded) {
                 yield final
             }
+            if (!final && accumulated.trim()) {
+                // Last resort: use lightly cleaned raw output
+                const fallback = accumulated
+                    .replace(/^```[\w]*\n?/, '')
+                    .replace(/\n?```\s*$/, '')
+                    .trim()
+                if (fallback) yield fallback
+            }
             return final
         } catch (e: unknown) {
             if (e instanceof Error && e.name === 'AbortError') return ''
+            this.lastError =
+                e instanceof Error ? e.message : 'Completion failed'
             if (process.env.NODE_ENV === 'development') {
                 console.warn('[inlineCompletion]', e)
             }
@@ -275,8 +232,7 @@ class InlineCompletionService {
 
 function shouldStopStreaming(text: string, ctx: InlineCompletionContext): boolean {
     if (!text) return false
-    const lines = text.split('\n')
-    if (lines.length > 12) return true
+    if (text.split('\n').length > 16) return true
     if (/\n\s*\}\s*$/.test(text) && ctx.prefix.includes('{')) return true
     return false
 }

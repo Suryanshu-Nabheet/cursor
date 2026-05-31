@@ -55,7 +55,7 @@ import { store } from '../../app/store'
 import { triggerFileSearch } from '../../features/tools/toolSlice'
 import { pressAICommand } from '../../features/chat/chatThunks'
 import { createThemeFromData } from '../../theme/themeManager'
-import { ghostTextExtension, hasGhostText } from '../../features/extensions/ghostText'
+import { ghostTextExtension, hasGhostText, bindViewFilePath } from '../../features/extensions/ghostText'
 
 // Safe accessor for connector (fallback to window.connector if global connector is not available)
 const getConnector = () => {
@@ -314,6 +314,11 @@ export function useExtensions({
             effects: lsCompartment.reconfigure(lsPlugin),
         })
     }, [lsStatus, filePath, justCreated, editorRef.current])
+
+    useEffect(() => {
+        const view = editorRef.current?.view
+        if (view) bindViewFilePath(view, filePath)
+    }, [filePath, editorRef.current?.view, justCreated])
 
     useEffect(() => {
         const main = async () => {
