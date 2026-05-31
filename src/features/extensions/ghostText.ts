@@ -66,7 +66,7 @@ const ghostTextField = StateField.define<{ text: string; pos: number } | null>({
             if (effect.is(acceptGhostTextEffect)) return null
             if (effect.is(dismissGhostTextEffect)) return null
         }
-        // Only clear on document edits — tr.selection is always truthy (SelectionSet object)
+        // Clear when the document changes
         if (tr.docChanged) {
             return null
         }
@@ -85,6 +85,15 @@ const ghostTextField = StateField.define<{ text: string; pos: number } | null>({
 })
 
 let activeFetchToken = 0
+
+function deferGhostDismiss(view: EditorView) {
+    queueMicrotask(() => {
+        if (!view.dom.isConnected) return
+        if (view.state.field(ghostTextField, false)) {
+            view.dispatch({ effects: dismissGhostTextEffect.of() })
+        }
+    })
+}
 
 async function runInlineCompletion(view: EditorView, force = false) {
     const settings = store.getState().settingsState.settings
@@ -167,14 +176,13 @@ const ghostTextTriggerPlugin = ViewPlugin.fromClass(
 
             if (update.selectionSet && !update.docChanged) {
                 inlineCompletionService.cancel()
-                update.view.dispatch({ effects: dismissGhostTextEffect.of() })
+                deferGhostDismiss(update.view)
                 return
             }
 
             if (!update.docChanged || fromGhostAccept) return
 
             inlineCompletionService.cancel()
-            update.view.dispatch({ effects: dismissGhostTextEffect.of() })
 
             const settings = store.getState().settingsState.settings
             if (!isInlineCompletionEnabled(settings)) return

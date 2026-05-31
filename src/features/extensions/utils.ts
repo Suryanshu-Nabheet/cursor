@@ -4,7 +4,7 @@ import { getCurrentTab, getFilePath, getFocusedTab, getTab } from '../selectors'
 import { getTests, selectHasTests } from '../tests/testSelectors'
 import { TestData } from '../tests/testSlice'
 import { CommentFunction } from '../window/state'
-import { API_ROOT } from '../../utils'
+import { API_ROOT, isLegacyBackendEnabled } from '../../utils'
 import { StateEffect } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { paneIdField } from './storePane'
@@ -255,16 +255,23 @@ export async function getCommentSingle(data: {
     functionBody: string
     functionName: string
 }) {
-    const response = await fetch(`${API_ROOT}/commentSingle`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        //credentials: 'include',
-        body: JSON.stringify(data),
-    })
+    if (!isLegacyBackendEnabled()) {
+        return { comment: null }
+    }
 
-    return (await response.json()) as { comment: string | null }
+    try {
+        const response = await fetch(`${API_ROOT}/commentSingle`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        })
+        if (!response.ok) return { comment: null }
+        return (await response.json()) as { comment: string | null }
+    } catch {
+        return { comment: null }
+    }
 }
 
 export function getCachedFileName() {

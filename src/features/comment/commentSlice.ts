@@ -2,7 +2,7 @@ import { PayloadAction, createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { findFileIdFromPath } from '../window/fileUtils'
 import { CommentFunction, CommentState, FullState } from '../window/state'
 
-import { API_ROOT, streamSource } from '../../utils'
+import { API_ROOT, isLegacyBackendEnabled, streamSource } from '../../utils'
 
 const initialState: CommentState = {
     fileThenNames: {},
@@ -32,6 +32,10 @@ export const updateCommentsForFile = createAsyncThunk(
             }
         }
         cachedComments = cachedComments || {}
+
+        if (!isLegacyBackendEnabled()) {
+            return
+        }
 
         let response: Response
         try {

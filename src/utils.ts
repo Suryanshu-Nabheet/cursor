@@ -71,6 +71,13 @@ export async function* streamSource(response: Response): AsyncGenerator<any> {
 
 export const API_ROOT = 'http://localhost:8000'
 
+/** Optional legacy Python backend — off by default; IDE uses client-side AI instead */
+export const LEGACY_BACKEND_ENABLED = false
+
+export function isLegacyBackendEnabled(): boolean {
+    return LEGACY_BACKEND_ENABLED
+}
+
 export function join(a: string, b: string): string {
     if (a[a.length - 1] === connector.PLATFORM_DELIMITER) {
         return a + b
