@@ -3420,10 +3420,11 @@ cm-diff-cancel>div {
     color: var(--type) !important;
 }
 
+.cm-ghost-text,
+.cm-ghost-text *,
 .cm-ghostText,
 .cm-ghostText * {
     color: var(--ui-fg-muted) !important;
-    opacity: 0.7 !important;
 }
 
 .cm-ai-comment {

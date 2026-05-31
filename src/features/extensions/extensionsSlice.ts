@@ -454,10 +454,11 @@ export const initializeExtensions = createAsyncThunk(
                 )
             }
         }
-        console.log(`✨ Loaded ${themesFound} themes from extensions`)
-        console.log(
-            `🔌 Activated ${extensionsActivated}/${extensions.length} extensions`
-        )
+        if (extensions.length > 0) {
+            console.log(
+                `Activated ${extensionsActivated}/${extensions.length} extensions`
+            )
+        }
 
         return extensions
     }

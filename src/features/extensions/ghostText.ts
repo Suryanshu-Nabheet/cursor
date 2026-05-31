@@ -7,7 +7,13 @@ import {
     keymap,
 } from '@codemirror/view'
 import { StateField, StateEffect, Prec } from '@codemirror/state'
-import { debounce } from 'lodash'
+import { store } from '../../app/store'
+import {
+    extractInlineCompletionContext,
+    inlineCompletionService,
+    isInlineCompletionEnabled,
+    getActiveFilePath,
+} from '../ai/inlineCompletion'
 
 // --- State & Effects ---
 export const setGhostTextEffect = StateEffect.define<{
@@ -16,6 +22,7 @@ export const setGhostTextEffect = StateEffect.define<{
 } | null>()
 
 export const acceptGhostTextEffect = StateEffect.define<void>()
+export const dismissGhostTextEffect = StateEffect.define<void>()
 
 class GhostTextWidget extends WidgetType {
     constructor(readonly text: string) {
@@ -27,13 +34,25 @@ class GhostTextWidget extends WidgetType {
     }
 
     toDOM() {
-        const span = document.createElement('span')
-        span.className = 'cm-ghost-text'
-        span.textContent = this.text
-        span.style.opacity = '0.5'
-        span.style.fontStyle = 'italic'
-        span.style.color = 'var(--ui-fg-muted)' // Better visibility support
-        return span
+        const wrap = document.createElement('span')
+        wrap.className = 'cm-ghost-text'
+        wrap.setAttribute('aria-hidden', 'true')
+
+        const hint = document.createElement('span')
+        hint.className = 'cm-ghost-text__hint'
+        hint.textContent = 'Tab'
+
+        const text = document.createElement('span')
+        text.className = 'cm-ghost-text__content'
+        text.textContent = this.text
+
+        wrap.appendChild(text)
+        wrap.appendChild(hint)
+        return wrap
+    }
+
+    ignoreEvent() {
+        return true
     }
 }
 
@@ -43,21 +62,18 @@ const ghostTextField = StateField.define<{ text: string; pos: number } | null>({
     },
     update(value, tr) {
         for (const effect of tr.effects) {
-            if (effect.is(setGhostTextEffect)) {
-                return effect.value
-            }
-            if (effect.is(acceptGhostTextEffect)) {
-                return null
-            }
+            if (effect.is(setGhostTextEffect)) return effect.value
+            if (effect.is(acceptGhostTextEffect)) return null
+            if (effect.is(dismissGhostTextEffect)) return null
         }
-        if (tr.docChanged) {
+        if (tr.docChanged || tr.selection) {
             return null
         }
         return value
     },
-    provide: (f) =>
-        EditorView.decorations.from(f, (value) => {
-            if (!value) return Decoration.none
+    provide: f =>
+        EditorView.decorations.from(f, value => {
+            if (!value?.text) return Decoration.none
             return Decoration.set([
                 Decoration.widget({
                     widget: new GhostTextWidget(value.text),
@@ -67,81 +83,160 @@ const ghostTextField = StateField.define<{ text: string; pos: number } | null>({
         }),
 })
 
-// --- View Plugin for Triggering ---
-const ghostTextPlugin = ViewPlugin.fromClass(
-    class {
-        updateDebounced: (view: EditorView) => void
+let activeFetchToken = 0
 
-        constructor(view: EditorView) {
-            this.updateDebounced = debounce((v: EditorView) => {
-                this.triggerGhostText(v)
-            }, 1000)
+async function runInlineCompletion(view: EditorView, force = false) {
+    const settings = store.getState().settingsState.settings
+    if (!isInlineCompletionEnabled(settings)) return
+
+    if (view.state.readOnly) return
+
+    const ctx = extractInlineCompletionContext(view, getActiveFilePath())
+    if (!ctx) {
+        inlineCompletionService.cancel()
+        view.dispatch({ effects: dismissGhostTextEffect.of() })
+        return
+    }
+
+    if (!force && ctx.linePrefix.trim().length === 0 && ctx.prefix.trim().length < 8) {
+        return
+    }
+
+    const token = ++activeFetchToken
+    inlineCompletionService.cancel()
+
+    const pos = view.state.selection.main.head
+    let lastDispatched = ''
+
+    try {
+        for await (const partial of inlineCompletionService.stream(ctx)) {
+            if (token !== activeFetchToken) break
+            if (view.state.selection.main.head !== pos) break
+            if (!partial || partial === lastDispatched) continue
+
+            lastDispatched = partial
+            view.dispatch({
+                effects: setGhostTextEffect.of({ text: partial, pos }),
+            })
+        }
+    } catch {
+        if (token === activeFetchToken) {
+            view.dispatch({ effects: dismissGhostTextEffect.of() })
+        }
+    }
+}
+
+function scheduleCompletion(view: EditorView, delayMs: number) {
+    const plugin = view.plugin(ghostTextSchedulerPlugin)
+    plugin?.schedule(view, delayMs)
+}
+
+// Debounced scheduler attached to the view
+const ghostTextSchedulerPlugin = ViewPlugin.fromClass(
+    class {
+        private timer: ReturnType<typeof setTimeout> | null = null
+
+        schedule(view: EditorView, delayMs: number) {
+            if (this.timer) clearTimeout(this.timer)
+            this.timer = setTimeout(() => {
+                this.timer = null
+                void runInlineCompletion(view)
+            }, delayMs)
         }
 
-        update(update: ViewUpdate) {
-            if (update.docChanged) {
-                // If doc changed, trigger fetching
-                const isUserEvent = update.transactions.some((tr) =>
-                    tr.isUserEvent('input')
-                )
-                if (isUserEvent) {
-                    this.updateDebounced(update.view)
-                }
+        cancel() {
+            if (this.timer) {
+                clearTimeout(this.timer)
+                this.timer = null
             }
         }
 
-        async triggerGhostText(view: EditorView) {
-            const state = view.state
-            const pos = state.selection.main.head
-
-            // Advanced context extraction: 50 lines before and after
-            const startLine = state.doc.lineAt(pos).number
-            const from = state.doc.line(Math.max(1, startLine - 50)).from
-            const precedingCode = state.doc.sliceString(from, pos)
-
-            const endLine = state.doc.lines
-            const to = state.doc.line(Math.min(endLine, startLine + 50)).to
-            const followingCode = state.doc.sliceString(pos, to)
-
-            // Ready for AI Service Hook
-            // const context = {
-            //     prefix: precedingCode,
-            //     suffix: followingCode,
-            //     language: 'typescript', // Detect dynamically
-            //     cursorPos: pos
-            // }
-            // store.dispatch(fetchGhostText(context))
+        destroy() {
+            this.cancel()
         }
     }
 )
 
-// --- Keymap ---
+const ghostTextTriggerPlugin = ViewPlugin.fromClass(
+    class {
+        update(update: ViewUpdate) {
+            if (!update.docChanged && !update.selectionSet) return
+
+            if (update.selectionSet && !update.docChanged) {
+                inlineCompletionService.cancel()
+                update.view.dispatch({ effects: dismissGhostTextEffect.of() })
+                return
+            }
+
+            const isUserInput = update.transactions.some(
+                tr => tr.isUserEvent('input') || tr.isUserEvent('delete')
+            )
+            if (!isUserInput) return
+
+            inlineCompletionService.cancel()
+            update.view.dispatch({ effects: dismissGhostTextEffect.of() })
+
+            const settings = store.getState().settingsState.settings
+            if (!isInlineCompletionEnabled(settings)) return
+
+            const delay = Number(settings.inlineCompletionDelay ?? 400)
+            scheduleCompletion(update.view, delay)
+        }
+
+        destroy() {
+            inlineCompletionService.cancel()
+        }
+    }
+)
+
+export function triggerInlineCompletion(view: EditorView) {
+    inlineCompletionService.cancel()
+    view.dispatch({ effects: dismissGhostTextEffect.of() })
+    void runInlineCompletion(view, true)
+}
+
 const ghostTextKeymap = keymap.of([
     {
         key: 'Tab',
-        run: (view) => {
+        run: view => {
             const ghostText = view.state.field(ghostTextField, false)
-            if (ghostText) {
-                view.dispatch({
-                    changes: {
-                        from: ghostText.pos,
-                        insert: ghostText.text,
-                    },
-                    effects: acceptGhostTextEffect.of(),
-                    selection: {
-                        anchor: ghostText.pos + ghostText.text.length,
-                    },
-                })
-                return true
-            }
-            return false
+            if (!ghostText?.text) return false
+            view.dispatch({
+                changes: { from: ghostText.pos, insert: ghostText.text },
+                effects: acceptGhostTextEffect.of(),
+                selection: { anchor: ghostText.pos + ghostText.text.length },
+                userEvent: 'input.complete',
+            })
+            inlineCompletionService.cancel()
+            return true
+        },
+    },
+    {
+        key: 'Escape',
+        run: view => {
+            const ghostText = view.state.field(ghostTextField, false)
+            if (!ghostText) return false
+            inlineCompletionService.cancel()
+            view.dispatch({ effects: dismissGhostTextEffect.of() })
+            return true
+        },
+    },
+    {
+        key: 'Mod-Shift-Space',
+        run: view => {
+            triggerInlineCompletion(view)
+            return true
         },
     },
 ])
 
-// Export the extension array
 export const ghostTextExtension = [
     ghostTextField,
-    ghostTextPlugin,
+    ghostTextSchedulerPlugin,
+    ghostTextTriggerPlugin,
     Prec.highest(ghostTextKeymap),
 ]
+
+export function hasGhostText(state: import('@codemirror/state').EditorState): boolean {
+    return !!state.field(ghostTextField, false)?.text
+}

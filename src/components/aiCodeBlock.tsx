@@ -199,9 +199,11 @@ function escapeHtml(text: string): string {
 interface ToolCallCardProps {
     toolName: string
     arguments: Record<string, any>
+    argumentsRaw?: string
     result?: string
     success?: boolean
     isExecuting?: boolean
+    isPending?: boolean
     needsApproval?: boolean
     onAccept?: () => void
     onReject?: () => void
@@ -210,9 +212,11 @@ interface ToolCallCardProps {
 export function ToolCallCard({
     toolName,
     arguments: args,
+    argumentsRaw,
     result,
     success,
     isExecuting,
+    isPending,
     needsApproval,
     onAccept,
     onReject,
@@ -244,6 +248,7 @@ export function ToolCallCard({
     }
 
     const getToolStatusColor = () => {
+        if (isPending) return 'text-ui-fg-muted'
         if (needsApproval) return 'text-warn'
         if (isExecuting) return 'text-accent'
         if (success === true) return 'text-success'
@@ -315,6 +320,11 @@ export function ToolCallCard({
                     {needsApproval && !isExecuting && (
                         <span className="text-warn text-[10px] font-semibold border border-warn/30 px-1.5 py-0.5 rounded">Needs Approval</span>
                     )}
+                    {isPending && !isExecuting && (
+                        <div className="text-ui-fg-muted text-[10px]">
+                            <Codicon name="loading" className="codicon-modifier-spin" />
+                        </div>
+                    )}
                     {isExecuting && (
                         <div className="text-ui-fg-muted text-[10px]">
                             <Codicon name="loading" className="codicon-modifier-spin" />
@@ -341,7 +351,7 @@ export function ToolCallCard({
                     <div className="mb-2">
                         <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">Arguments</div>
                         <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">
-                            {JSON.stringify(args, null, 2)}
+                            {argumentsRaw || JSON.stringify(args, null, 2)}
                         </pre>
                     </div>
 

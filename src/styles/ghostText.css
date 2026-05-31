@@ -1,6 +1,29 @@
 .cm-ghost-text {
-    opacity: 0.5;
-    font-style: italic;
+    display: inline;
     pointer-events: none;
+    user-select: none;
+}
+
+.cm-ghost-text__content {
+    opacity: 0.45;
+    font-style: italic;
     color: var(--ui-fg-muted, #888);
+    white-space: pre-wrap;
+}
+
+.cm-ghost-text__hint {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    padding: 0 4px;
+    font-size: 9px;
+    font-style: normal;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--ui-fg-muted);
+    opacity: 0.35;
+    border: 1px solid color-mix(in srgb, var(--ui-border) 60%, transparent);
+    border-radius: 3px;
+    vertical-align: middle;
 }

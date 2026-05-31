@@ -54,7 +54,7 @@ import { storePaneIdExtensions } from '../../features/extensions/storePane'
 import { store } from '../../app/store'
 import { triggerFileSearch } from '../../features/tools/toolSlice'
 import { createThemeFromData } from '../../theme/themeManager'
-import { ghostTextExtension } from '../../features/extensions/ghostText'
+import { ghostTextExtension, hasGhostText } from '../../features/extensions/ghostText'
 
 // Safe accessor for connector (fallback to window.connector if global connector is not available)
 const getConnector = () => {
@@ -195,7 +195,10 @@ const globalExtensions = [
         keymap.of([
             {
                 key: 'Tab',
-                run: acceptCompletion,
+                run: (view) => {
+                    if (hasGhostText(view.state)) return false
+                    return acceptCompletion(view)
+                },
             },
         ])
     ),

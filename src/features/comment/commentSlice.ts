@@ -18,60 +18,76 @@ export const updateCommentsForFile = createAsyncThunk(
         const contents = global.fileCache[fileId].contents
         let cachedComments = state.commentState.fileThenNames[payload.filePath]
         if (cachedComments == null) {
-            //@ts-ignore
-            cachedComments = await connector.loadComments(payload.filePath)
-            dispatch(
-                updateComments({
-                    filePath: payload.filePath,
-                    comments: cachedComments,
-                })
-            )
+            try {
+                //@ts-ignore
+                cachedComments = await connector.loadComments(payload.filePath)
+                dispatch(
+                    updateComments({
+                        filePath: payload.filePath,
+                        comments: cachedComments,
+                    })
+                )
+            } catch {
+                cachedComments = {}
+            }
         }
         cachedComments = cachedComments || {}
 
-        const response = await fetch(`${API_ROOT}/comment`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Cookie: `repo_path=${state.global.rootPath}`,
-            },
-            //credentials: 'include',
-            body: JSON.stringify({
-                toComment: contents,
-                filename: payload.filePath,
-                cachedComments: cachedComments,
-            }),
-        })
-        const getNextToken = async () => {
-            const rawResult = await generator.next()
-            if (rawResult.done) return null
-            return rawResult.value
+        let response: Response
+        try {
+            response = await fetch(`${API_ROOT}/comment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: `repo_path=${state.global.rootPath}`,
+                },
+                body: JSON.stringify({
+                    toComment: contents,
+                    filename: payload.filePath,
+                    cachedComments: cachedComments,
+                }),
+            })
+        } catch {
+            // Comment service unavailable (e.g. local backend not running)
+            return
         }
 
-        const generator = streamSource(response)
-        let line = await getNextToken()
-        while (line != null) {
-            const {
-                function_name: name,
-                function_body: body,
-                comment,
-                description,
-            } = line as any
-            dispatch(
-                updateSingleComment({
-                    filePath: payload.filePath,
-                    functionName: name,
-                    commentFn: {
-                        originalFunctionBody: body,
-                        comment: comment.trim(),
-                        description: description.trim(),
-                    },
-                })
-            )
-            line = await getNextToken()
-        }
+        if (!response.ok) return
 
-        dispatch(saveComments({ path: payload.filePath }))
+        try {
+            const generator = streamSource(response)
+            const getNextToken = async () => {
+                const rawResult = await generator.next()
+                if (rawResult.done) return null
+                return rawResult.value
+            }
+
+            let line = await getNextToken()
+            while (line != null) {
+                const {
+                    function_name: name,
+                    function_body: body,
+                    comment,
+                    description,
+                } = line as any
+                dispatch(
+                    updateSingleComment({
+                        filePath: payload.filePath,
+                        functionName: name,
+                        commentFn: {
+                            originalFunctionBody: body,
+                            comment: comment.trim(),
+                            description: description.trim(),
+                        },
+                    })
+                )
+                line = await getNextToken()
+            }
+
+            dispatch(saveComments({ path: payload.filePath }))
+        } catch {
+            // Ignore stream/parse failures when comment service is unavailable
+        }
     }
 )
 

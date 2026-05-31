@@ -340,6 +340,10 @@ export interface Settings {
     theme?: string
     fontFamily?: string
     fontSize?: string
+    // Inline AI completion (Copilot-style ghost text)
+    inlineCompletionEnabled?: boolean
+    inlineCompletionDelay?: number
+    inlineCompletionMaxTokens?: number
 }
 
 export interface SettingsState {

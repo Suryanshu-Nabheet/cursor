@@ -60,6 +60,8 @@ import { languages } from '@codemirror/language-data'
 import { getCodexTheme } from '../../theme'
 
 import { store } from '../../app/store'
+import { extensionActivationManager } from '../extensions/extensionActivation'
+import { getLanguageFromFilename } from '../extensions/utils'
 
 interface SemanticToken {
     from: number
@@ -665,7 +667,19 @@ export class LanguageServerPlugin implements LanguageServerPluginInterface {
                     from: number,
                     to: number
                 ) => {
+    // LSP apply: respect textEdit.range when present
                     const pickText = textEdit?.newText ?? insertText ?? label
+                    let applyFrom = from
+                    let applyTo = to
+                    if (textEdit && 'range' in textEdit && textEdit.range) {
+                        const { start, end } = textEdit.range
+                        applyFrom =
+                            view.state.doc.line(start.line + 1).from +
+                            start.character
+                        applyTo =
+                            view.state.doc.line(end.line + 1).from +
+                            end.character
+                    }
                     let changesText: {
                         from: number
                         to: number
@@ -698,7 +712,7 @@ export class LanguageServerPlugin implements LanguageServerPluginInterface {
                     } catch (e) {
                         // LSP plugin error
                     }
-                    const changes = [{ from, to, insert: pickText }].concat(
+                    const changes = [{ from: applyFrom, to: applyTo, insert: pickText }].concat(
                         changesText
                     )
                     view.dispatch({
@@ -770,7 +784,7 @@ export class LanguageServerPlugin implements LanguageServerPluginInterface {
                 // filter: false
             }
         } else {
-            if (this.previousCompletions?.to) {
+            if (this.previousCompletions) {
                 this.previousCompletions.wordCompleted = true
             }
             return {
@@ -1290,11 +1304,55 @@ export function languageServer(options: LanguageServerPluginOptions) {
                         }
                     )
 
-                    if (completion == null) return null
+                    if (completion != null) return completion
 
-                    return completion
+                    return requestExtensionCompletions(context)
                 },
             ],
         }),
     ]
+}
+
+async function requestExtensionCompletions(
+    context: CompletionContext
+): Promise<CompletionResult | null> {
+    const { state, pos } = context
+    const filepath = state.facet(docPathFacet)
+    if (!filepath) return null
+
+    const language = getLanguageFromFilename(filepath)
+    const providers = extensionActivationManager.getCompletionProviders(language)
+    if (providers.length === 0) return null
+
+    const { line, character } = offsetToPos(state.doc, pos)
+    const token = context.matchBefore(/\w*/)
+    const from = token?.from ?? pos
+
+    for (const provider of providers) {
+        try {
+            const result = await provider.provideCompletionItems?.(
+                {
+                    uri: filepath,
+                    getText: () => state.doc.toString(),
+                    lineAt: (n: number) => state.doc.line(n + 1).text,
+                },
+                { line, character }
+            )
+            const items = Array.isArray(result) ? result : result?.items
+            if (!items?.length) continue
+
+            const options = items.slice(0, 100).map((item: any) => ({
+                label: String(item.label ?? item.text ?? ''),
+                detail: item.detail,
+                type: item.kind?.toLowerCase?.() ?? 'text',
+                apply: item.insertText ?? item.label,
+            }))
+
+            if (options.length === 0) continue
+            return { from, options, filter: true }
+        } catch {
+            // try next provider
+        }
+    }
+    return null
 }

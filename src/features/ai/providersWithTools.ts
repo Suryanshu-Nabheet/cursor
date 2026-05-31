@@ -10,12 +10,13 @@ export interface AIMessage {
 }
 
 export interface StreamChunk {
-    type: 'text' | 'tool_call' | 'error'
+    type: 'text' | 'tool_call_start' | 'tool_call' | 'tool_call_delta' | 'error'
     content?: string
     toolCall?: {
         id: string
         name: string
         arguments: Record<string, any>
+        argumentsRaw?: string
     }
     error?: string
 }
@@ -259,9 +260,58 @@ async function* streamOpenAIWithTools(
             number,
             { id?: string; name?: string; arguments?: string }
         >()
+        const announcedToolStarts = new Set<number>()
+        const completedToolCalls = new Set<number>()
 
-        // Fallback: Accumulate full text to sniff for JSON code blocks
         let fullTextAccumulator = ''
+
+        const emitCompletedToolCalls = function* (): Generator<StreamChunk> {
+            for (const [index, toolCall] of toolCallsMap) {
+                const callId =
+                    toolCall.id || `pending_${index}_${toolCall.name || 'tool'}`
+
+                if (toolCall.name && !announcedToolStarts.has(index)) {
+                    announcedToolStarts.add(index)
+                    yield {
+                        type: 'tool_call_start',
+                        toolCall: {
+                            id: callId,
+                            name: toolCall.name,
+                            arguments: {},
+                        },
+                    }
+                }
+
+                if (
+                    toolCall.name &&
+                    toolCall.arguments &&
+                    !completedToolCalls.has(index)
+                ) {
+                    try {
+                        const parsedArgs = JSON.parse(toolCall.arguments)
+                        completedToolCalls.add(index)
+                        yield {
+                            type: 'tool_call',
+                            toolCall: {
+                                id: callId,
+                                name: toolCall.name,
+                                arguments: parsedArgs,
+                            },
+                        }
+                    } catch {
+                        yield {
+                            type: 'tool_call_delta',
+                            toolCall: {
+                                id: callId,
+                                name: toolCall.name,
+                                arguments: {},
+                                argumentsRaw: toolCall.arguments,
+                            },
+                        }
+                    }
+                }
+            }
+        }
 
         while (true) {
             const { done, value } = await reader.read()
@@ -297,14 +347,22 @@ async function* streamOpenAIWithTools(
                                         toolCallDelta.function.arguments
                                 toolCallsMap.set(index, existing)
                             }
+
+                            for (const chunk of emitCompletedToolCalls()) {
+                                yield chunk
+                            }
                         }
                     } catch (e) {}
                 }
             }
         }
 
+        // Final pass — emit any tool calls that completed on the last chunk
+        for (const chunk of emitCompletedToolCalls()) {
+            yield chunk
+        }
+
         // Check for JSON fallback in the text
-        // Look for ```json { ... } ``` pattern
         if (toolCallsMap.size === 0) {
             const jsonRegex = /```json\s*(\{[\s\S]*?\})\s*```/g
             let match
@@ -327,13 +385,15 @@ async function* streamOpenAIWithTools(
             }
         }
 
-        for (const [_, toolCall] of toolCallsMap) {
+        // Yield any tool calls not already streamed incrementally
+        for (const [index, toolCall] of toolCallsMap) {
+            if (completedToolCalls.has(index)) continue
             if (toolCall.name && toolCall.arguments) {
                 try {
                     yield {
                         type: 'tool_call',
                         toolCall: {
-                            id: toolCall.id || `call_${Date.now()}`,
+                            id: toolCall.id || `call_${Date.now()}_${index}`,
                             name: toolCall.name,
                             arguments: JSON.parse(toolCall.arguments),
                         },
@@ -463,6 +523,14 @@ async function* streamClaudeWithTools(
                             currentToolCall = {
                                 ...event.content_block,
                                 inputStr: '',
+                            }
+                            yield {
+                                type: 'tool_call_start',
+                                toolCall: {
+                                    id: event.content_block.id,
+                                    name: event.content_block.name,
+                                    arguments: {},
+                                },
                             }
                         }
                         if (
@@ -609,12 +677,21 @@ async function* streamGeminiWithTools(
                         if (part.text)
                             yield { type: 'text', content: part.text }
                         if (part.functionCall) {
+                            const callId = `call_${part.functionCall.name}_${Date.now()}`
+                            yield {
+                                type: 'tool_call_start',
+                                toolCall: {
+                                    id: callId,
+                                    name: part.functionCall.name,
+                                    arguments: {},
+                                },
+                            }
                             yield {
                                 type: 'tool_call',
                                 toolCall: {
-                                    id: `call_${Date.now()}`,
+                                    id: callId,
                                     name: part.functionCall.name,
-                                    arguments: part.functionCall.args,
+                                    arguments: part.functionCall.args || {},
                                 },
                             }
                         }

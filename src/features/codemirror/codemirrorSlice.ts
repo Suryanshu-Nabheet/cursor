@@ -13,6 +13,11 @@ import {
     syncDispatch,
 } from '../../components/codemirrorHooks/dispatch'
 
+interface RegisterEditor {
+    tabId: number
+    editorId: number
+}
+
 interface UpsertEditor {
     tabId: number
     editorStateConfig: {
@@ -32,6 +37,34 @@ interface UpsertEditor {
         }
     }
     useCustomDispatch?: boolean
+}
+
+function createEditorView(
+    editorStateConfig: UpsertEditor['editorStateConfig'],
+    useCustomDispatch?: boolean
+): EditorView {
+    const { initialState, config } = editorStateConfig
+    const editorState = initialState
+        ? EditorState.fromJSON(
+              initialState.json,
+              config,
+              initialState.fields
+          )
+        : EditorState.create(config)
+
+    let view!: EditorView
+    view = new EditorView({
+        state: editorState,
+        dispatch: useCustomDispatch
+            ? (tr) => customDispatch(view, tr)
+            : undefined,
+    })
+    return view
+}
+
+function nextEditorId(state: CodeMirrorState): number {
+    if (state.editorIds.length === 0) return 1
+    return Math.max(...state.editorIds) + 1
 }
 
 // Internal state management for CodeMirror views
@@ -104,7 +137,13 @@ export const upsertEditor = createAsyncThunk(
         { tabId, editorStateConfig, useCustomDispatch }: UpsertEditor,
         { getState, dispatch }
     ) => {
-        dispatch(_upsertEditor({ tabId, editorStateConfig, useCustomDispatch }))
+        const cmState = (getState() as FullCodeMirrorState).codeMirrorState
+        if (tabId in cmState.editorMap) return
+
+        const editorId = nextEditorId(cmState)
+        const view = createEditorView(editorStateConfig, useCustomDispatch)
+        addCodeMirrorView(editorId, view)
+        dispatch(_registerEditor({ tabId, editorId }))
 
         const state = (<FullState>getState()).global
         const fileId = state.tabs[tabId].fileId
@@ -115,7 +154,6 @@ export const upsertEditor = createAsyncThunk(
                 state.tabs[parseInt(otherTabId)].fileId === fileId
         )
 
-        // Then we change the other tabs to be the same
         if (similarTabIds.length > 0) {
             const allTabIds = [
                 tabId,
@@ -158,40 +196,12 @@ export const codeMirrorSlice = createSlice({
         // Case for installing a language server
     },
     reducers: {
-        _upsertEditor: (state, action: PayloadAction<UpsertEditor>) => {
-            const {
-                tabId,
-                editorStateConfig: { initialState, config },
-                useCustomDispatch,
-            } = action.payload
-            // Check if we already have an editor for this tab
-
-            const stateCurrent = initialState
-                ? EditorState.fromJSON(
-                      initialState.json,
-                      config,
-                      initialState.fields
-                  )
-                : EditorState.create(config)
-
-            // Otherwise, create a new editor
-            const view: EditorView = new EditorView({
-                ...stateCurrent,
-                dispatch: useCustomDispatch
-                    ? (tr) => customDispatch(view, tr)
-                    : undefined,
-            })
-
-            let nextId
-            if (state.editorIds.length == 0) {
-                nextId = 1
-            } else {
-                nextId = Math.max(...state.editorIds) + 1
+        _registerEditor: (state, action: PayloadAction<RegisterEditor>) => {
+            const { tabId, editorId } = action.payload
+            if (!(tabId in state.editorMap)) {
+                state.editorIds.push(editorId)
+                state.editorMap[tabId] = editorId
             }
-            addCodeMirrorView(nextId, view)
-            state.editorIds.push(nextId)
-            state.editorMap[tabId] = nextId
-            // Then we clean the views
             cleanViews(state)
         },
         _removeEditor: (state, action: PayloadAction<{ tabId: number }>) => {
@@ -223,5 +233,5 @@ export const codeMirrorSlice = createSlice({
     },
 })
 
-export const { _upsertEditor, _removeEditor, transferEditor } =
+export const { _registerEditor, _removeEditor, transferEditor } =
     codeMirrorSlice.actions

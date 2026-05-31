@@ -4,12 +4,15 @@
  * Single unified message per AI turn (no fragmented bubbles).
  */
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { flushSync } from 'react-dom'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { Codicon } from './codicon'
 import * as ts from '../features/tools/toolSlice'
 import { getActiveProviderAPIKey } from '../features/ai/apiKeyUtils'
 import { streamAIResponseWithTools } from '../features/ai/providersWithTools'
 import { AI_TOOLS, AI_SYSTEM_PROMPT, executeToolCall } from '../features/ai/tools'
+import { buildWorkspaceContext, injectWorkspaceContext } from '../features/ai/workspaceContext'
+import { store } from '../app/store'
 import { openFile, fileWasUpdated } from '../features/globalSlice'
 import * as ssel from '../features/settings/settingsSelectors'
 import { toggleSettings, setSettingsTab } from '../features/settings/settingsSlice'
@@ -36,11 +39,19 @@ interface ToolCallState {
     id: string
     name: string
     arguments: Record<string, any>
+    argumentsRaw?: string
     result?: string
     success?: boolean
     isExecuting: boolean
+    isPending?: boolean
     needsApproval?: boolean
 }
+
+type StreamPhase = 'idle' | 'streaming' | 'tools' | 'executing'
+
+type TurnSegment =
+    | { id: string; type: 'text'; content: string }
+    | { id: string; type: 'tools'; toolCalls: ToolCallState[] }
 
 interface Message {
     id: string
@@ -48,7 +59,40 @@ interface Message {
     content: string
     timestamp: Date
     toolCalls?: ToolCallState[]
+    segments?: TurnSegment[]
     plan?: string
+}
+
+function cloneSegments(segments: TurnSegment[]): TurnSegment[] {
+    return segments.map(seg =>
+        seg.type === 'text'
+            ? { ...seg }
+            : { ...seg, toolCalls: seg.toolCalls.map(tc => ({ ...tc })) }
+    )
+}
+
+function messageFromSegments(segments: TurnSegment[]) {
+    const content = segments
+        .filter((s): s is Extract<TurnSegment, { type: 'text' }> => s.type === 'text')
+        .map(s => s.content)
+        .filter(Boolean)
+        .join('\n\n')
+    const toolCalls = segments
+        .filter((s): s is Extract<TurnSegment, { type: 'tools' }> => s.type === 'tools')
+        .flatMap(s => s.toolCalls)
+    return { content, toolCalls, segments: cloneSegments(segments) }
+}
+
+function deriveSegmentsFromMessage(message: Message): TurnSegment[] {
+    if (message.segments?.length) return message.segments
+    const segs: TurnSegment[] = []
+    if (message.content?.trim()) {
+        segs.push({ id: 'text-legacy', type: 'text', content: message.content })
+    }
+    if (message.toolCalls?.length) {
+        segs.push({ id: 'tools-legacy', type: 'tools', toolCalls: message.toolCalls })
+    }
+    return segs
 }
 
 // ─── Shimmer Loader ───────────────────────────────────────────────────────────
@@ -79,6 +123,28 @@ function TypingCursor() {
             className="inline-block w-0.5 h-3.5 rounded-sm bg-accent ml-0.5 align-text-bottom animate-blink"
             aria-hidden="true"
         />
+    )
+}
+
+function StreamingPlainText({
+    text,
+    isStreaming,
+    muted = false,
+}: {
+    text: string
+    isStreaming: boolean
+    muted?: boolean
+}) {
+    if (!text && !isStreaming) return null
+    return (
+        <div
+            className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words ${
+                muted ? 'text-ui-fg-muted opacity-80' : 'text-ui-fg'
+            }`}
+        >
+            {text}
+            {isStreaming && <TypingCursor />}
+        </div>
     )
 }
 
@@ -230,9 +296,11 @@ function ToolCallsGroup({
                             key={tc.id}
                             toolName={tc.name}
                             arguments={tc.arguments}
+                            argumentsRaw={tc.argumentsRaw}
                             result={tc.result}
                             success={tc.success}
                             isExecuting={tc.isExecuting}
+                            isPending={tc.isPending}
                             needsApproval={tc.needsApproval}
                             onAccept={() => onToolApproval(tc.id, true)}
                             onReject={() => onToolApproval(tc.id, false)}
@@ -250,33 +318,44 @@ function MessageBubble({
     onToolApproval,
     onRetry,
     isStreaming = false,
-    streamedText = '',
-    pendingToolCalls = [],
+    streamingSegments = [],
+    activeTextSegmentId = null,
     currentPlan,
+    streamPhase = 'idle',
 }: {
     message: Message
     onToolApproval: (id: string, approved: boolean) => void
     onRetry?: () => void
     isStreaming?: boolean
-    streamedText?: string
-    pendingToolCalls?: ToolCallState[]
+    streamingSegments?: TurnSegment[]
+    activeTextSegmentId?: string | null
     currentPlan?: string | null
+    streamPhase?: StreamPhase
 }) {
     const [copied, setCopied] = useState(false)
     const isUser = message.role === 'user'
 
+    const segments = isStreaming && streamingSegments.length > 0
+        ? streamingSegments
+        : deriveSegmentsFromMessage(message)
+
+    const allToolCalls = segments
+        .filter((s): s is Extract<TurnSegment, { type: 'tools' }> => s.type === 'tools')
+        .flatMap(s => s.toolCalls)
+    const fullText = segments
+        .filter((s): s is Extract<TurnSegment, { type: 'text' }> => s.type === 'text')
+        .map(s => s.content)
+        .join('\n\n')
+
     const handleCopy = async () => {
-        const text = isStreaming ? streamedText : message.content
-        await navigator.clipboard.writeText(text)
+        await navigator.clipboard.writeText(fullText || message.content)
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
 
-    const toolsToRender = isStreaming ? pendingToolCalls : (message.toolCalls ?? [])
-    const contentToRender = isStreaming ? streamedText : message.content
     const planToRender = isStreaming ? currentPlan : message.plan
-    const doneTools = toolsToRender.filter(tc => tc.success !== undefined).length
-    const totalTools = toolsToRender.length
+    const doneTools = allToolCalls.filter(tc => tc.success !== undefined).length
+    const totalTools = allToolCalls.length
 
     /* ── User message ────────────────────────────────────────────────── */
     if (isUser) {
@@ -338,41 +417,58 @@ function MessageBubble({
 
             {/* Content area */}
             <div className="pl-7">
-                {/* Plan card */}
                 {planToRender && <PlanCard planMarkdown={planToRender} />}
 
-                {/* Tool calls group */}
-                {toolsToRender.length > 0 && (
-                    <ToolCallsGroup
-                        toolCalls={toolsToRender}
-                        onToolApproval={onToolApproval}
-                        isStreaming={isStreaming}
-                    />
+                {segments.map((seg, idx) => {
+                    if (seg.type === 'text') {
+                        if (!seg.content && !(isStreaming && seg.id === activeTextSegmentId)) return null
+                        const isActiveText = isStreaming && seg.id === activeTextSegmentId
+                        return (
+                            <div key={seg.id} className={idx > 0 ? 'mt-3' : ''}>
+                                {isActiveText ? (
+                                    <StreamingPlainText
+                                        text={seg.content}
+                                        isStreaming={streamPhase === 'streaming'}
+                                    />
+                                ) : (
+                                    <div className="text-[13px] text-ui-fg leading-relaxed">
+                                        <AiMarkdown content={seg.content} />
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    }
+
+                    if (seg.toolCalls.length === 0) return null
+                    return (
+                        <div key={seg.id} className={idx > 0 ? 'mt-3' : ''}>
+                            <ToolCallsGroup
+                                toolCalls={seg.toolCalls}
+                                onToolApproval={onToolApproval}
+                                isStreaming={isStreaming}
+                            />
+                        </div>
+                    )
+                })}
+
+                {isStreaming && segments.length === 0 && (
+                    <ShimmerLoader label={
+                        streamPhase === 'executing' || allToolCalls.some(tc => tc.isExecuting)
+                            ? `Running ${allToolCalls.find(tc => tc.isExecuting)?.name?.replace(/_/g, ' ') ?? 'tool'}…`
+                            : allToolCalls.some(tc => tc.isPending)
+                                ? 'Preparing tool call…'
+                                : totalTools > 0 && doneTools === totalTools
+                                    ? 'Synthesizing results…'
+                                    : 'Thinking…'
+                    } />
                 )}
 
-                {/* Text content */}
-                {contentToRender ? (
-                    <div className="text-[13px] text-ui-fg leading-relaxed">
-                        <AiMarkdown content={contentToRender} />
-                        {isStreaming && <TypingCursor />}
-                    </div>
-                ) : isStreaming ? (
-                    <ShimmerLoader label={
-                        toolsToRender.some(tc => tc.isExecuting)
-                            ? `Running ${toolsToRender.find(tc => tc.isExecuting)?.name?.replace(/_/g, ' ')}…`
-                            : totalTools > 0 && doneTools === totalTools
-                                ? 'Synthesizing results…'
-                                : 'Thinking…'
-                    } />
-                ) : null}
-
-                {/* Footer */}
-                {!isStreaming && (contentToRender || toolsToRender.length > 0) && (
+                {!isStreaming && segments.length > 0 && (
                     <div className="flex items-center justify-end gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                         <span className="text-[9px] font-mono text-ui-fg-muted opacity-50">
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
-                        {contentToRender && (
+                        {(fullText || message.content) && (
                             <button
                                 className="flex items-center justify-center w-5 h-5 rounded hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
                                 onClick={handleCopy}
@@ -405,23 +501,121 @@ export function AIChatSidebar() {
 
     // ── State ────────────────────────────────────────────────────────────────
     const [messages, setMessages] = useState<Message[]>([])
-    const [currentPlan, setCurrentPlan] = useState<string | null>(null)
+    const [currentPlan, setCurrentPlanState] = useState<string | null>(null)
     const [input, setInput] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
-    const [streamedText, setStreamedText] = useState('')
-    const [pendingToolCalls, setPendingToolCalls] = useState<ToolCallState[]>([])
+    const [streamingSegments, setStreamingSegments] = useState<TurnSegment[]>([])
+    const [streamPhase, setStreamPhase] = useState<StreamPhase>('idle')
 
     // ── Refs ─────────────────────────────────────────────────────────────────
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const messagesContainerRef = useRef<HTMLDivElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
     const abortControllerRef = useRef<AbortController | null>(null)
     const confirmationResolvers = useRef<Record<string, { resolve: (v: boolean) => void; reject: () => void }>>({})
+    const stickToBottomRef = useRef(true)
 
-    // KEY ARCHITECTURE: single message ID + accumulated state persist across recursive turns
     const activeAssistantIdRef = useRef<string | null>(null)
-    const accumulatedToolCallsRef = useRef<ToolCallState[]>([])
-    // STREAMING BUG FIX: store ONLY completed-turn text; current-turn text is local
-    const completedTurnTextRef = useRef<string>('')
+    const segmentsRef = useRef<TurnSegment[]>([])
+    const activeTextSegmentIdRef = useRef<string | null>(null)
+    const activeToolsSegmentIdRef = useRef<string | null>(null)
+    const currentPlanRef = useRef<string | null>(null)
+
+    const setCurrentPlan = useCallback((plan: string | null) => {
+        currentPlanRef.current = plan
+        setCurrentPlanState(plan)
+    }, [])
+
+    const finalizeAssistantMessage = useCallback(() => {
+        const id = activeAssistantIdRef.current
+        if (!id) return
+        const derived = messageFromSegments(segmentsRef.current)
+        setMessages(prev => prev.map(m =>
+            m.id === id
+                ? {
+                    ...m,
+                    content: derived.content,
+                    toolCalls: derived.toolCalls,
+                    segments: derived.segments,
+                    plan: currentPlanRef.current || undefined,
+                }
+                : m
+        ))
+    }, [])
+
+    const syncSegments = useCallback(() => {
+        flushSync(() => {
+            setStreamingSegments(cloneSegments(segmentsRef.current))
+        })
+    }, [])
+
+    const thisTurnToolCallIdsRef = useRef<Set<string>>(new Set())
+
+    const updateTurnText = useCallback((turnText: string) => {
+        const cleaned = turnText.replace(/<plan>[\s\S]*?<\/plan>/g, '').trim()
+        if (!cleaned) return
+
+        const segs = segmentsRef.current
+        const activeId = activeTextSegmentIdRef.current
+
+        if (activeId) {
+            const idx = segs.findIndex(s => s.id === activeId)
+            const seg = segs[idx]
+            if (idx >= 0 && seg?.type === 'text') {
+                segs[idx] = { id: seg.id, type: 'text', content: cleaned }
+                syncSegments()
+                return
+            }
+        }
+
+        const id = `text-${Date.now()}`
+        segs.push({ id, type: 'text', content: cleaned })
+        activeTextSegmentIdRef.current = id
+        syncSegments()
+    }, [syncSegments])
+
+    const ensureToolsSegment = useCallback(() => {
+        activeTextSegmentIdRef.current = null
+        if (activeToolsSegmentIdRef.current) return activeToolsSegmentIdRef.current
+
+        const id = `tools-${Date.now()}`
+        segmentsRef.current.push({ id, type: 'tools', toolCalls: [] })
+        activeToolsSegmentIdRef.current = id
+        syncSegments()
+        return id
+    }, [syncSegments])
+
+    const upsertToolCall = useCallback((toolCall: ToolCallState) => {
+        ensureToolsSegment()
+        const toolsSegId = activeToolsSegmentIdRef.current!
+        const segs = segmentsRef.current
+        const segIdx = segs.findIndex(s => s.id === toolsSegId)
+        const toolsSeg = segs[segIdx]
+        if (segIdx < 0 || toolsSeg?.type !== 'tools') return
+
+        const toolsSegment = toolsSeg
+        const toolCalls = [...toolsSegment.toolCalls]
+        let existingIndex = toolCalls.findIndex(tc => tc.id === toolCall.id)
+        if (existingIndex < 0 && toolCall.name) {
+            existingIndex = toolCalls.findIndex(
+                tc =>
+                    tc.name === toolCall.name &&
+                    (tc.isPending || tc.isExecuting) &&
+                    tc.success === undefined
+            )
+        }
+        if (existingIndex >= 0) {
+            toolCalls[existingIndex] = {
+                ...toolCalls[existingIndex],
+                ...toolCall,
+                id: toolCall.id || toolCalls[existingIndex].id,
+            }
+        } else {
+            toolCalls.push(toolCall)
+        }
+        segs[segIdx] = { id: toolsSegment.id, type: 'tools', toolCalls }
+        syncSegments()
+    }, [ensureToolsSegment, syncSegments])
 
     // ── Computed ─────────────────────────────────────────────────────────────
     const isAIConfigured = useMemo(() => {
@@ -447,8 +641,26 @@ export function AIChatSidebar() {
 
     // ── Effects ───────────────────────────────────────────────────────────────
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages, streamedText, pendingToolCalls])
+        const container = messagesContainerRef.current
+        if (!container) return
+
+        const onScroll = () => {
+            const distance =
+                container.scrollHeight - container.scrollTop - container.clientHeight
+            stickToBottomRef.current = distance < 96
+        }
+
+        container.addEventListener('scroll', onScroll, { passive: true })
+        return () => container.removeEventListener('scroll', onScroll)
+    }, [])
+
+    useEffect(() => {
+        if (!stickToBottomRef.current) return
+        const container = messagesContainerRef.current
+        if (container) {
+            container.scrollTop = container.scrollHeight
+        }
+    }, [messages, streamingSegments, streamPhase, isGenerating])
 
     useEffect(() => {
         if (textareaRef.current) {
@@ -482,9 +694,19 @@ export function AIChatSidebar() {
     // ── THE CORE FIX: processTurn updates the single message, NEVER creates new ones ──
     const processTurn = useCallback(
         async (currentMessages: any[], currentModel: any, provider: any, apiKey: any) => {
-            // Text for THIS turn only (reset per recursive call)
             let thisTurnText = ''
             const thisTurnToolCalls: ToolCallState[] = []
+            thisTurnToolCallIdsRef.current = new Set()
+            activeTextSegmentIdRef.current = null
+            activeToolsSegmentIdRef.current = null
+
+            const workspaceContext = await buildWorkspaceContext(
+                store.getState() as FullState
+            )
+            const messagesWithContext = injectWorkspaceContext(
+                currentMessages,
+                workspaceContext
+            )
 
             const providerConfig = {
                 provider, apiKey, enabled: true, defaultModel: currentModel,
@@ -492,9 +714,10 @@ export function AIChatSidebar() {
             }
 
             try {
+                setStreamPhase('streaming')
                 const stream = streamAIResponseWithTools(
                     providerConfig,
-                    currentMessages,
+                    messagesWithContext as any,
                     // @ts-ignore
                     { tools: AI_TOOLS, maxToolCalls: 50, signal: abortControllerRef.current?.signal }
                 )
@@ -506,7 +729,6 @@ export function AIChatSidebar() {
                         const text = chunk.content || ''
                         thisTurnText += text
 
-                        // Plan extraction
                         const ps = thisTurnText.indexOf('<plan>')
                         const pe = thisTurnText.indexOf('</plan>')
                         let visibleText = thisTurnText
@@ -521,67 +743,74 @@ export function AIChatSidebar() {
                             }
                         }
 
-                        // STREAMING FIX: display = completed previous turns + THIS turn text only
-                        // NO accumulation during streaming — visibleText is the full current turn state
-                        const previousText = completedTurnTextRef.current
-                        const display = previousText ? `${previousText}\n\n${visibleText}` : visibleText
-                        setStreamedText(display)
+                        updateTurnText(visibleText)
+
+                    } else if (chunk.type === 'tool_call_start' && chunk.toolCall) {
+                        setStreamPhase('tools')
+                        upsertToolCall({
+                            id: chunk.toolCall.id,
+                            name: chunk.toolCall.name,
+                            arguments: {},
+                            isExecuting: false,
+                            isPending: true,
+                        })
+
+                    } else if (chunk.type === 'tool_call_delta' && chunk.toolCall) {
+                        setStreamPhase('tools')
+                        upsertToolCall({
+                            id: chunk.toolCall.id,
+                            name: chunk.toolCall.name,
+                            arguments: chunk.toolCall.arguments,
+                            argumentsRaw: chunk.toolCall.argumentsRaw,
+                            isExecuting: false,
+                            isPending: true,
+                        })
 
                     } else if (chunk.type === 'tool_call' && chunk.toolCall) {
+                        setStreamPhase('tools')
                         const tc: ToolCallState = {
                             id: chunk.toolCall.id,
                             name: chunk.toolCall.name,
                             arguments: chunk.toolCall.arguments,
                             isExecuting: false,
+                            isPending: false,
                         }
-                        thisTurnToolCalls.push(tc)
-                        accumulatedToolCallsRef.current = [...accumulatedToolCallsRef.current, tc]
-                        setPendingToolCalls([...accumulatedToolCallsRef.current])
+
+                        if (!thisTurnToolCallIdsRef.current.has(tc.id)) {
+                            thisTurnToolCallIdsRef.current.add(tc.id)
+                            thisTurnToolCalls.push(tc)
+                        }
+
+                        upsertToolCall(tc)
 
                     } else if (chunk.type === 'error') {
                         thisTurnText += `\n\nError: ${chunk.error}`
-                        const prev = completedTurnTextRef.current
-                        setStreamedText(prev ? `${prev}\n\n${thisTurnText}` : thisTurnText)
+                        updateTurnText(thisTurnText)
                     }
                 }
 
-                // ── Turn complete: no tool calls → finalize single message ──
                 if (thisTurnToolCalls.length === 0) {
-                    const cleanThisTurn = thisTurnText.replace(/<plan>[\s\S]*?<\/plan>/g, '').trim()
-                    const finalContent = completedTurnTextRef.current
-                        ? cleanThisTurn ? `${completedTurnTextRef.current}\n\n${cleanThisTurn}` : completedTurnTextRef.current
-                        : cleanThisTurn
-
-                    setMessages(prev => prev.map(m =>
-                        m.id === activeAssistantIdRef.current
-                            ? { ...m, content: finalContent, toolCalls: accumulatedToolCallsRef.current, plan: currentPlan || undefined }
-                            : m
-                    ))
-
-                    setStreamedText('')
+                    finalizeAssistantMessage()
                     setCurrentPlan(null)
-                    setPendingToolCalls([])
-                    completedTurnTextRef.current = ''
+                    setStreamPhase('idle')
+                    activeTextSegmentIdRef.current = null
+                    activeToolsSegmentIdRef.current = null
                     return
                 }
 
-                // ── Has tool calls: store this turn's visited text, then execute tools ──
-                const cleanThisTurn = thisTurnText.replace(/<plan>[\s\S]*?<\/plan>/g, '').trim()
-                if (cleanThisTurn) {
-                    completedTurnTextRef.current = completedTurnTextRef.current
-                        ? `${completedTurnTextRef.current}\n\n${cleanThisTurn}`
-                        : cleanThisTurn
-                }
+                activeTextSegmentIdRef.current = null
 
+                setStreamPhase('executing')
                 const toolResults: any[] = []
                 for (const toolCall of thisTurnToolCalls) {
                     try {
                         // Destructive ops need approval
                         if (['edit_file', 'delete_file', 'run_terminal_command'].includes(toolCall.name)) {
-                            accumulatedToolCallsRef.current = accumulatedToolCallsRef.current.map(tc =>
-                                tc.id === toolCall.id ? { ...tc, needsApproval: true } : tc
-                            )
-                            setPendingToolCalls([...accumulatedToolCallsRef.current])
+                            upsertToolCall({
+                                ...toolCall,
+                                needsApproval: true,
+                                isPending: false,
+                            })
 
                             try {
                                 const approved = await new Promise<boolean>((resolve, reject) => {
@@ -590,10 +819,14 @@ export function AIChatSidebar() {
                                 delete confirmationResolvers.current[toolCall.id]
 
                                 if (!approved) {
-                                    accumulatedToolCallsRef.current = accumulatedToolCallsRef.current.map(tc =>
-                                        tc.id === toolCall.id ? { ...tc, needsApproval: false, success: false, result: 'Rejected by user' } : tc
-                                    )
-                                    setPendingToolCalls([...accumulatedToolCallsRef.current])
+                                    upsertToolCall({
+                                        ...toolCall,
+                                        needsApproval: false,
+                                        success: false,
+                                        result: 'Rejected by user',
+                                        isExecuting: false,
+                                        isPending: false,
+                                    })
                                     toolResults.push({ toolCallId: toolCall.id, result: 'User rejected', name: toolCall.name })
                                     continue
                                 }
@@ -603,10 +836,12 @@ export function AIChatSidebar() {
                         }
 
                         // Mark executing
-                        accumulatedToolCallsRef.current = accumulatedToolCallsRef.current.map(tc =>
-                            tc.id === toolCall.id ? { ...tc, isExecuting: true, needsApproval: false } : tc
-                        )
-                        setPendingToolCalls([...accumulatedToolCallsRef.current])
+                        upsertToolCall({
+                            ...toolCall,
+                            isExecuting: true,
+                            needsApproval: false,
+                            isPending: false,
+                        })
 
                         const result = await executeToolCall(
                             { id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments },
@@ -616,36 +851,44 @@ export function AIChatSidebar() {
                         )
 
                         toolResults.push({ toolCallId: toolCall.id, result: result.result, name: toolCall.name })
-                        accumulatedToolCallsRef.current = accumulatedToolCallsRef.current.map(tc =>
-                            tc.id === toolCall.id ? { ...tc, isExecuting: false, success: result.success, result: result.result } : tc
-                        )
-                        setPendingToolCalls([...accumulatedToolCallsRef.current])
+                        upsertToolCall({
+                            ...toolCall,
+                            isExecuting: false,
+                            isPending: false,
+                            success: result.success,
+                            result: result.result,
+                        })
                     } catch (e: any) {
                         toolResults.push({ toolCallId: toolCall.id, result: `Error: ${e.message}`, name: toolCall.name })
-                        accumulatedToolCallsRef.current = accumulatedToolCallsRef.current.map(tc =>
-                            tc.id === toolCall.id ? { ...tc, isExecuting: false, success: false, result: e.message } : tc
-                        )
-                        setPendingToolCalls([...accumulatedToolCallsRef.current])
+                        upsertToolCall({
+                            ...toolCall,
+                            isExecuting: false,
+                            isPending: false,
+                            success: false,
+                            result: e.message,
+                        })
                     }
                 }
 
                 // Build next turn
-                const nextMessages = [
-                    ...currentMessages,
-                    {
-                        role: 'assistant',
-                        content: thisTurnText || null,
-                        tool_calls: thisTurnToolCalls.map(tc => ({
-                            id: tc.id, type: 'function',
-                            function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+                const nextMessages = injectWorkspaceContext(
+                    [
+                        ...currentMessages,
+                        {
+                            role: 'assistant',
+                            content: thisTurnText || null,
+                            tool_calls: thisTurnToolCalls.map(tc => ({
+                                id: tc.id, type: 'function',
+                                function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+                            })),
+                        },
+                        ...toolResults.map(tr => ({
+                            role: 'tool', tool_call_id: tr.toolCallId, name: tr.name, content: tr.result,
                         })),
-                    },
-                    ...toolResults.map(tr => ({
-                        role: 'tool', tool_call_id: tr.toolCallId, name: tr.name, content: tr.result,
-                    })),
-                ]
+                    ],
+                    await buildWorkspaceContext(store.getState() as FullState)
+                )
 
-                // Recurse — same activeAssistantIdRef, same accumulated refs
                 await processTurn(nextMessages, currentModel, provider, apiKey)
 
             } catch (error: any) {
@@ -658,7 +901,7 @@ export function AIChatSidebar() {
                 ))
             }
         },
-        [rootPath, settings, dispatch, currentPlan]
+        [rootPath, settings, dispatch, setCurrentPlan, updateTurnText, upsertToolCall, finalizeAssistantMessage]
     )
 
     // ── Send ─────────────────────────────────────────────────────────────────
@@ -680,8 +923,10 @@ export function AIChatSidebar() {
         // Create the ONE assistant placeholder for the entire response
         const assistantId = `${Date.now() + 1}`
         activeAssistantIdRef.current = assistantId
-        accumulatedToolCallsRef.current = []
-        completedTurnTextRef.current = ''
+        segmentsRef.current = []
+        activeTextSegmentIdRef.current = null
+        activeToolsSegmentIdRef.current = null
+        thisTurnToolCallIdsRef.current = new Set()
 
         const placeholder: Message = {
             id: assistantId,
@@ -695,9 +940,10 @@ export function AIChatSidebar() {
         setMessages(updatedMessages)
         setInput('')
         setIsGenerating(true)
-        setStreamedText('')
+        setStreamingSegments([])
         setCurrentPlan(null)
-        setPendingToolCalls([])
+        setStreamPhase('streaming')
+        stickToBottomRef.current = true
 
         if (abortControllerRef.current) abortControllerRef.current.abort()
         abortControllerRef.current = new AbortController()
@@ -705,27 +951,30 @@ export function AIChatSidebar() {
         try {
             const { model, provider, apiKey } = await getModelToUse()
 
-            const context = `CONTEXT:\nProject Root: ${rootPath || 'No folder open'}\nActive File: ${activeFilePath || 'No file open'}`
-            const apiMessages = [
-                { role: 'system', content: AI_SYSTEM_PROMPT },
-                { role: 'system', content: context },
-                ...messages.flatMap((m): any[] => {
-                    if (m.role === 'user') return [{ role: 'user', content: m.content }]
-                    const msgs: any[] = []
-                    const tcs = m.toolCalls?.map(tc => ({
-                        id: tc.id, type: 'function',
-                        function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-                    }))
-                    msgs.push({ role: 'assistant', content: m.content || null, tool_calls: tcs?.length ? tcs : undefined })
-                    m.toolCalls?.forEach(tc => {
-                        if (tc.result !== undefined) {
-                            msgs.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: tc.result || (tc.success ? 'Success' : 'Failed') })
-                        }
-                    })
-                    return msgs
-                }),
-                { role: 'user', content: userMsg.content },
-            ]
+            const workspaceContext = await buildWorkspaceContext(
+                store.getState() as FullState
+            )
+            const apiMessages = injectWorkspaceContext(
+                [
+                    ...messages.flatMap((m): any[] => {
+                        if (m.role === 'user') return [{ role: 'user', content: m.content }]
+                        const msgs: any[] = []
+                        const tcs = m.toolCalls?.map(tc => ({
+                            id: tc.id, type: 'function',
+                            function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+                        }))
+                        msgs.push({ role: 'assistant', content: m.content || null, tool_calls: tcs?.length ? tcs : undefined })
+                        m.toolCalls?.forEach(tc => {
+                            if (tc.result !== undefined) {
+                                msgs.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: tc.result || (tc.success ? 'Success' : 'Failed') })
+                            }
+                        })
+                        return msgs
+                    }),
+                    { role: 'user', content: userMsg.content },
+                ],
+                workspaceContext
+            )
 
             await processTurn(apiMessages, model, provider, apiKey)
         } catch (error: any) {
@@ -738,10 +987,13 @@ export function AIChatSidebar() {
             }
         } finally {
             setIsGenerating(false)
-            setStreamedText('')
+            setStreamingSegments([])
             setCurrentPlan(null)
-            setPendingToolCalls([])
-            completedTurnTextRef.current = ''
+            setStreamPhase('idle')
+            segmentsRef.current = []
+            activeTextSegmentIdRef.current = null
+            activeToolsSegmentIdRef.current = null
+            currentPlanRef.current = null
             abortControllerRef.current = null
         }
     }, [input, isGenerating, isAIConfigured, messages, getModelToUse, rootPath, activeFilePath, dispatch, processTurn])
@@ -752,11 +1004,14 @@ export function AIChatSidebar() {
 
     const handleClearChat = useCallback(() => {
         setMessages([])
-        setStreamedText('')
+        setStreamingSegments([])
         setCurrentPlan(null)
-        setPendingToolCalls([])
-        completedTurnTextRef.current = ''
-        accumulatedToolCallsRef.current = []
+        setStreamPhase('idle')
+        segmentsRef.current = []
+        activeTextSegmentIdRef.current = null
+        activeToolsSegmentIdRef.current = null
+        currentPlanRef.current = null
+        thisTurnToolCallIdsRef.current = new Set()
         if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
         setIsGenerating(false)
         Object.values(confirmationResolvers.current).forEach(r => { try { r.reject() } catch { } })
@@ -767,24 +1022,29 @@ export function AIChatSidebar() {
         if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
         setIsGenerating(false)
         if (activeAssistantIdRef.current) {
-            const finalContent = completedTurnTextRef.current || streamedText
+            const derived = messageFromSegments(segmentsRef.current)
             setMessages(prev => prev.map(m =>
                 m.id === activeAssistantIdRef.current
                     ? {
                         ...m,
-                        content: finalContent.replace(/<plan>[\s\S]*?<\/plan>/g, '').trim() + ' *(stopped)*',
-                        toolCalls: accumulatedToolCallsRef.current.length ? accumulatedToolCallsRef.current : m.toolCalls,
+                        content: (derived.content || m.content).replace(/<plan>[\s\S]*?<\/plan>/g, '').trim() + ' *(stopped)*',
+                        toolCalls: derived.toolCalls.length ? derived.toolCalls : m.toolCalls,
+                        segments: derived.segments,
+                        plan: currentPlanRef.current || m.plan,
                     }
                     : m
             ))
         }
-        setStreamedText('')
+        setStreamingSegments([])
         setCurrentPlan(null)
-        setPendingToolCalls([])
-        completedTurnTextRef.current = ''
+        setStreamPhase('idle')
+        segmentsRef.current = []
+        activeTextSegmentIdRef.current = null
+        activeToolsSegmentIdRef.current = null
+        currentPlanRef.current = null
         Object.values(confirmationResolvers.current).forEach(r => r.reject())
         confirmationResolvers.current = {}
-    }, [streamedText])
+    }, [])
 
     const handleToolApproval = useCallback((toolId: string, approved: boolean) => {
         confirmationResolvers.current[toolId]?.resolve(approved)
@@ -879,10 +1139,12 @@ export function AIChatSidebar() {
     }
 
     // ── Main chatbox ──────────────────────────────────────────────────────────
-    const runningToolName = pendingToolCalls.find(tc => tc.isExecuting)?.name?.replace(/_/g, ' ')
+    const runningToolName = streamingSegments
+        .flatMap(s => (s.type === 'tools' ? s.toolCalls : []))
+        .find(tc => tc.isExecuting)?.name?.replace(/_/g, ' ')
     const genStatusText = runningToolName
         ? `Running ${runningToolName}…`
-        : pendingToolCalls.length > 0
+        : streamingSegments.some(s => s.type === 'tools')
             ? 'Analyzing…'
             : 'Generating…'
 
@@ -891,7 +1153,10 @@ export function AIChatSidebar() {
             <Header />
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 flex flex-col gap-0 min-h-0 [scrollbar-width:thin]">
+            <div
+                ref={messagesContainerRef}
+                className="ai-sidebar__messages"
+            >
                 {/* Empty state */}
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center text-center gap-3 my-auto max-w-[260px] mx-auto relative py-8">
@@ -934,6 +1199,7 @@ export function AIChatSidebar() {
                         !isStreamingThis &&
                         message.role === 'assistant' &&
                         !message.content &&
+                        (!message.segments?.length) &&
                         (!message.toolCalls || message.toolCalls.length === 0)
                     ) return null
 
@@ -947,9 +1213,10 @@ export function AIChatSidebar() {
                                 setTimeout(() => textareaRef.current?.focus(), 50)
                             } : undefined}
                             isStreaming={isStreamingThis}
-                            streamedText={isStreamingThis ? streamedText : undefined}
-                            pendingToolCalls={isStreamingThis ? pendingToolCalls : undefined}
+                            streamingSegments={isStreamingThis ? streamingSegments : undefined}
+                            activeTextSegmentId={isStreamingThis ? activeTextSegmentIdRef.current : null}
                             currentPlan={isStreamingThis ? currentPlan : undefined}
+                            streamPhase={isStreamingThis ? streamPhase : 'idle'}
                         />
                     )
                 })}

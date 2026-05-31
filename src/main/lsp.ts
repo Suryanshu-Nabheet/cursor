@@ -957,18 +957,6 @@ class LSPManager {
                         a: { label: string; sortText?: string },
                         b: { label: string; sortText?: string }
                     ) => {
-                        if (sorted) {
-                            remainingItems.sort((a, b) => {
-                                if (a.sortText < b.sortText) {
-                                    return -1
-                                } else if (a.sortText > b.sortText) {
-                                    return 1
-                                } else {
-                                    return 0
-                                }
-                            })
-                        }
-
                         const lowerA = a.label.toLowerCase()
                         const lowerB = b.label.toLowerCase()
 
@@ -977,18 +965,21 @@ class LSPManager {
                             !lowerB.startsWith(wordBeforeLower)
                         ) {
                             return -1
-                        } else if (
+                        }
+                        if (
                             !lowerA.startsWith(wordBeforeLower) &&
                             lowerB.startsWith(wordBeforeLower)
                         ) {
                             return 1
-                        } else {
-                            if (lowerA.length < lowerB.length) {
-                                return -1
-                            } else {
-                                return 1
-                            }
                         }
+
+                        if (sorted) {
+                            const sortA = a.sortText ?? a.label
+                            const sortB = b.sortText ?? b.label
+                            return sortA.localeCompare(sortB)
+                        }
+
+                        return lowerA.length - lowerB.length
                     }
                 )
 

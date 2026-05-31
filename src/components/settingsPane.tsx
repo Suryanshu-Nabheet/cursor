@@ -491,6 +491,54 @@ function AISettings({ onSave }: { onSave?: () => void }) {
                     />
                 )}
             </Section>
+
+            <Section
+                title="Inline Completion"
+                description="Copilot-style AI ghost text while you type"
+            >
+                <div className="space-y-4">
+                    <label className="flex items-center justify-between gap-4 cursor-pointer">
+                        <div>
+                            <span className="text-sm text-[var(--ui-fg)]">Enable inline completion</span>
+                            <p className="text-xs text-[var(--ui-fg-muted)] mt-0.5">
+                                Tab to accept · Esc to dismiss · ⌘⇧Space to trigger manually
+                            </p>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={settings.inlineCompletionEnabled !== false}
+                            onChange={e =>
+                                dispatch(
+                                    changeSettings({
+                                        inlineCompletionEnabled: e.target.checked,
+                                    })
+                                )
+                            }
+                            className="w-4 h-4 accent-[var(--accent)]"
+                        />
+                    </label>
+                    <div>
+                        <label className="block text-xs font-medium text-[var(--ui-fg)] mb-2">
+                            Trigger delay (ms)
+                        </label>
+                        <input
+                            type="number"
+                            min={150}
+                            max={2000}
+                            step={50}
+                            value={settings.inlineCompletionDelay ?? 400}
+                            onChange={e =>
+                                dispatch(
+                                    changeSettings({
+                                        inlineCompletionDelay: Number(e.target.value) || 400,
+                                    })
+                                )
+                            }
+                            className="w-full max-w-[140px] px-3 py-2 rounded-md bg-black/20 border border-[var(--ui-border)] text-sm text-[var(--ui-fg)]"
+                        />
+                    </div>
+                </div>
+            </Section>
         </div>
     )
 }
