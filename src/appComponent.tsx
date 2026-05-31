@@ -63,13 +63,33 @@ export function App() {
                 (isControl && e.ctrlKey) || (!isControl && e.metaKey)
 
             if (isCmdOrCtrl) {
-                // Cmd+K - Open Command Palette
-                if (e.key === 'k') {
+                // Cmd+K - AI inline edit / generate command bar
+                if (e.key === 'k' && !e.shiftKey) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (commandBarOpen) {
+                        dispatch(cs.abortCommandBar())
+                    } else {
+                        dispatch(ct.pressAICommand('k'))
+                    }
+                    return
+                }
+
+                // Cmd+Shift+P - Command Palette
+                if (e.key === 'p' && e.shiftKey) {
                     if (!commandPaletteOpen) {
                         e.preventDefault()
                         e.stopPropagation()
                         dispatch(ts.triggerCommandPalette())
                     }
+                    return
+                }
+
+                // Cmd+P - Quick Open (file search)
+                if (e.key === 'p' && !e.shiftKey) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    dispatch(ts.triggerFileSearch())
                     return
                 }
 

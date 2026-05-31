@@ -5,7 +5,7 @@
 }
 
 .cm-ghost-text__content {
-    opacity: 0.45;
+    opacity: 0.65;
     font-style: italic;
     color: var(--ui-fg-muted, #888);
     white-space: pre-wrap;

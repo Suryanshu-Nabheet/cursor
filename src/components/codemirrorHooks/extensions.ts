@@ -53,6 +53,7 @@ import { fixLintExtension } from '../../features/linter/fixLSPExtension'
 import { storePaneIdExtensions } from '../../features/extensions/storePane'
 import { store } from '../../app/store'
 import { triggerFileSearch } from '../../features/tools/toolSlice'
+import { pressAICommand } from '../../features/chat/chatThunks'
 import { createThemeFromData } from '../../theme/themeManager'
 import { ghostTextExtension, hasGhostText } from '../../features/extensions/ghostText'
 
@@ -186,6 +187,13 @@ const globalExtensions = [
                 key: getConnector().PLATFORM_CM_KEY + '-p',
                 run: (_view) => {
                     store.dispatch(triggerFileSearch())
+                    return true
+                },
+            },
+            {
+                key: getConnector().PLATFORM_CM_KEY + '-k',
+                run: (_view) => {
+                    store.dispatch(pressAICommand('k'))
                     return true
                 },
             },

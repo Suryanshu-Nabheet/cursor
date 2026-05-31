@@ -43,6 +43,7 @@ import {
 } from './chatSlice'
 import { Text } from '@codemirror/state'
 import { addTransaction, openError, openFile } from '../globalSlice'
+import { streamCommandBarClient } from '../ai/commandBarStream'
 import { findFileIdFromPath, getPathForFileId } from '../window/fileUtils'
 import {
     getPrecedingLines,
@@ -1153,7 +1154,24 @@ export const pressAICommand = createAsyncThunk(
                 }
                 return
             case 'k':
-                if (editorView) {
+                if (!editorView) {
+                    dispatch(changeMsgType('generate'))
+                    dispatch(openCommandBar())
+                    dispatch(
+                        activateDiffFromEditor({
+                            currentFile: fileId
+                                ? getPathForFileId(globState, fileId)!
+                                : null,
+                            precedingCode: null,
+                            procedingCode: null,
+                            currentSelection: null,
+                            pos: 0,
+                            selection: null,
+                        })
+                    )
+                    return
+                }
+                {
                     const selPos = getSelectedPos(editorView)
                     const selection = editorView.state.selection.main
                     editorView.dispatch({
@@ -1263,7 +1281,17 @@ export const pressAICommand = createAsyncThunk(
     }
 )
 
-export const submitCommandBar = thunkFactory(
-    dummySubmitCommandBar,
-    'submitCommandBar'
+export const submitCommandBar = createAsyncThunk(
+    'chat/submitCommandBar',
+    async (_payload: null, { getState, dispatch }) => {
+        dispatch(dummySubmitCommandBar())
+        const msgType = (getState() as FullState).chatState.msgType
+        if (msgType === 'chat_edit') {
+            dispatch(diffResponse('chat'))
+        } else if (msgType === 'edit' || msgType === 'generate') {
+            dispatch(streamCommandBarClient(null))
+        } else {
+            dispatch(streamResponse({}))
+        }
+    }
 )

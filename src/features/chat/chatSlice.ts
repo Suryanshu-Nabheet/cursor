@@ -201,23 +201,24 @@ export const chatSlice = createSlice({
 
             if (chatState.isCommandBarOpen) {
                 const conversationId = chatState.currentConversationId
+                const existing = chatState.draftMessages[conversationId]
                 chatState.draftMessages[conversationId] = {
+                    ...existing,
                     sender: 'user',
                     sentAt: Date.now(),
-                    message: '',
+                    message: existing?.message ?? '',
                     conversationId: chatState.currentConversationId,
-                    otherCodeBlocks: [],
-                    codeSymbols: [],
+                    otherCodeBlocks: existing?.otherCodeBlocks ?? [],
+                    codeSymbols: existing?.codeSymbols ?? [],
                     currentFile: payload.currentFile,
                     precedingCode: payload.precedingCode,
                     procedingCode: payload.procedingCode,
                     currentSelection: payload.currentSelection,
                     selection: payload.selection,
-                    msgType: 'freeform',
+                    msgType: chatState.msgType ?? existing?.msgType ?? 'freeform',
                 }
                 chatState.pos = payload.pos
                 chatState.commandBarHistoryIndex = -1
-                // chatState.commandBarText = ''
             }
         },
         startNewMessage(
@@ -306,13 +307,17 @@ export const chatSlice = createSlice({
             const newConversationId = uuidv4()
 
             chatState.currentConversationId = newConversationId
-            chatState.draftMessages[newConversationId] = blankDraftMessage(
-                newConversationId,
-                Date.now()
-            )
+            chatState.draftMessages[newConversationId] = {
+                ...blankDraftMessage(newConversationId, Date.now()),
+                msgType: chatState.msgType || 'freeform',
+            }
 
-            posthog.capture('Opened Command Bar', { type: chatState.msgType })
-            posthog.capture('Opened ' + chatState.msgType, {})
+            try {
+                posthog.capture('Opened Command Bar', { type: chatState.msgType })
+                posthog.capture('Opened ' + chatState.msgType, {})
+            } catch {
+                // analytics optional
+            }
         },
         toggleChatHistory(chatState: ChatState) {
             if (chatState.chatIsOpen && chatState.chatHistoryIsOpen) {

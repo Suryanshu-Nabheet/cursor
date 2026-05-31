@@ -258,6 +258,7 @@ export async function* streamAIResponse(
     options?: {
         temperature?: number
         maxTokens?: number
+        signal?: AbortSignal
     }
 ): AsyncGenerator<string, void, unknown> {
     const { provider: providerType, apiKey, defaultModel, baseUrl } = provider
@@ -290,7 +291,7 @@ async function* streamOpenAI(
     apiKey: string,
     model: string,
     messages: Array<{ role: string; content: string }>,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): AsyncGenerator<string, void, unknown> {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -305,6 +306,7 @@ async function* streamOpenAI(
             temperature: options?.temperature ?? 0.7,
             max_tokens: options?.maxTokens,
         }),
+        signal: options?.signal,
     })
 
     if (!response.ok) {
@@ -348,7 +350,7 @@ async function* streamOllama(
     baseUrl: string,
     model: string,
     messages: Array<{ role: string; content: string }>,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): AsyncGenerator<string, void, unknown> {
     // Ensure base URL doesn't have trailing slash
     const cleanUrl = baseUrl.replace(/\/$/, '')
@@ -367,6 +369,7 @@ async function* streamOllama(
                 temperature: options?.temperature ?? 0.7,
                 max_tokens: options?.maxTokens,
             }),
+            signal: options?.signal,
         })
 
         if (!response.ok) {
@@ -424,7 +427,7 @@ async function* streamOpenRouter(
     apiKey: string,
     model: string,
     messages: Array<{ role: string; content: string }>,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): AsyncGenerator<string, void, unknown> {
     if (process.env.NODE_ENV === 'development') {
         console.log('[OpenRouter] Sending request:', {
@@ -450,6 +453,7 @@ async function* streamOpenRouter(
                 temperature: options?.temperature ?? 0.7,
                 max_tokens: options?.maxTokens,
             }),
+            signal: options?.signal,
         }
     )
 
@@ -537,7 +541,7 @@ async function* streamGemini(
     apiKey: string,
     model: string,
     messages: Array<{ role: string; content: string }>,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): AsyncGenerator<string, void, unknown> {
     // Convert messages to Gemini format
     const contents = messages
@@ -566,6 +570,7 @@ async function* streamGemini(
                     maxOutputTokens: options?.maxTokens,
                 },
             }),
+            signal: options?.signal,
         }
     )
 
@@ -607,7 +612,7 @@ async function* streamClaude(
     apiKey: string,
     model: string,
     messages: Array<{ role: string; content: string }>,
-    options?: { temperature?: number; maxTokens?: number }
+    options?: { temperature?: number; maxTokens?: number; signal?: AbortSignal }
 ): AsyncGenerator<string, void, unknown> {
     // Convert messages to Claude format
     const system = messages.find((m) => m.role === 'system')?.content
@@ -633,6 +638,7 @@ async function* streamClaude(
             temperature: options?.temperature ?? 0.7,
             max_tokens: options?.maxTokens ?? 4096,
         }),
+        signal: options?.signal,
     })
 
     if (!response.ok) {

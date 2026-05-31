@@ -1,9 +1,9 @@
 /**
  * AI Inline Completion — Copilot-style fill-in-the-middle completions.
- * Fast, streaming, provider-aware, with strict output sanitization.
  */
 import { EditorView } from '@codemirror/view'
 import { getActiveProviderAPIKey } from './apiKeyUtils'
+import { streamAIResponse, AIProviderConfig, AIProvider } from './providers'
 import { store } from '../../app/store'
 import { Settings } from '../window/state'
 import { getLanguageFromFilename } from '../extensions/utils'
@@ -63,13 +63,6 @@ export function extractInlineCompletionContext(
     const indentMatch = linePrefix.match(/^(\s*)/)
     const indent = indentMatch?.[1] ?? ''
 
-    // Skip when cursor is on whitespace-only line with no meaningful context
-    const trimmedPrefix = linePrefix.trimEnd()
-    if (trimmedPrefix.length === 0 && pos > 0) {
-        const prevLine = state.doc.lineAt(Math.max(0, pos - 1))
-        if (prevLine.text.trim().length === 0) return null
-    }
-
     const startLine = line.number
     const prefixFrom = state.doc.line(Math.max(1, startLine - 80)).from
     const suffixTo = state.doc.line(
@@ -79,7 +72,7 @@ export function extractInlineCompletionContext(
     const prefix = state.doc.sliceString(prefixFrom, pos)
     const suffix = state.doc.sliceString(pos, suffixTo)
 
-    if (prefix.length < 2 && suffix.trim().length < 2) return null
+    if (prefix.trim().length < 1 && suffix.trim().length < 1) return null
 
     const path = filepath || getActiveFilePath()
     const language = getLanguageFromFilename(path)
@@ -107,7 +100,6 @@ export function sanitizeCompletion(
         .replace(/\n?```\s*$/, '')
         .replace(/<\|fim_(?:prefix|suffix|middle)\|>/g, '')
 
-    // Drop leading explanation lines before code
     const lines = text.split('\n')
     while (
         lines.length > 1 &&
@@ -118,7 +110,6 @@ export function sanitizeCompletion(
     }
     text = lines.join('\n')
 
-    // Trim trailing explanation after code block ends
     const codeLines = text.split('\n')
     const kept: string[] = []
     for (const line of codeLines) {
@@ -130,7 +121,7 @@ export function sanitizeCompletion(
             break
         }
         if (
-            kept.length >= 2 &&
+            kept.length >= 3 &&
             line.trim() &&
             !looksLikeCodeLine(line, context.language) &&
             !line.startsWith(context.indent)
@@ -141,7 +132,6 @@ export function sanitizeCompletion(
     }
     text = kept.join('\n').trimEnd()
 
-    // Align first line indentation with cursor line
     if (text && context.indent && !text.startsWith(context.indent)) {
         const firstLine = text.split('\n')[0]
         if (firstLine.trim() && !/^[}\]\)]/.test(firstLine.trim())) {
@@ -149,13 +139,16 @@ export function sanitizeCompletion(
         }
     }
 
-    // Never repeat what's already typed on the current line
-    const typed = context.linePrefix.trimEnd()
+    const typed = context.linePrefix
     if (typed && text.startsWith(typed)) {
         text = text.slice(typed.length)
+    } else if (typed.trimEnd()) {
+        const trimmedTyped = typed.trimEnd()
+        if (text.startsWith(trimmedTyped)) {
+            text = text.slice(trimmedTyped.length)
+        }
     }
 
-    // Cap length
     if (text.length > 1200) {
         text = text.slice(0, 1200)
         const lastNewline = text.lastIndexOf('\n')
@@ -174,6 +167,7 @@ function looksLikeCodeLine(line: string, _language: string): boolean {
     if (/^[{\[\(]/.test(t) || /[;\{\}\[\]\),]$/.test(t)) return true
     if (/^\s*(\/\/|\/\*|#|--|\*)/.test(line)) return true
     if (/^\s+\S/.test(line)) return true
+    if (/^[a-zA-Z_$][\w$]*\s*[=\(:]/.test(t)) return true
     return false
 }
 
@@ -190,6 +184,21 @@ ${ctx.suffix}
 <<<END_AFTER>>>
 
 Insert only the missing code at the cursor (between BEFORE and AFTER):`
+}
+
+async function buildProviderConfig(
+    settings: Settings
+): Promise<AIProviderConfig | null> {
+    const info = await getActiveProviderAPIKey(settings)
+    if (!info?.apiKey) return null
+
+    return {
+        provider: info.provider as AIProvider,
+        apiKey: info.apiKey,
+        enabled: true,
+        defaultModel: info.model.replace(':free', ''),
+        baseUrl: settings.ollamaBaseUrl || 'http://localhost:11434',
+    }
 }
 
 class InlineCompletionService {
@@ -215,8 +224,8 @@ class InlineCompletionService {
 
         try {
             const settings = store.getState().settingsState.settings
-            const providerInfo = await getActiveProviderAPIKey(settings)
-            if (!providerInfo?.apiKey) return ''
+            const provider = await buildProviderConfig(settings)
+            if (!provider) return ''
 
             const messages = [
                 { role: 'system' as const, content: SYSTEM_PROMPT },
@@ -224,30 +233,36 @@ class InlineCompletionService {
             ]
 
             const maxTokens = Number(settings.inlineCompletionMaxTokens ?? 256)
-            const temperature = 0.15
-
             let accumulated = ''
-            const stream = createCompletionStream(
-                providerInfo.provider,
-                providerInfo.apiKey,
-                providerInfo.model,
-                settings.ollamaBaseUrl,
-                messages,
-                { temperature, maxTokens, signal: controller.signal }
-            )
+            let lastYielded = ''
 
-            for await (const chunk of stream) {
+            for await (const chunk of streamAIResponse(provider, messages, {
+                temperature: 0.15,
+                maxTokens,
+                signal: controller.signal,
+            })) {
                 if (requestId !== this.activeRequestId) break
                 if (controller.signal.aborted) break
+
                 accumulated += chunk
                 const sanitized = sanitizeCompletion(accumulated, context)
-                if (sanitized) yield sanitized
+                if (sanitized && sanitized !== lastYielded) {
+                    lastYielded = sanitized
+                    yield sanitized
+                }
                 if (shouldStopStreaming(sanitized, context)) break
             }
 
-            return sanitizeCompletion(accumulated, context)
-        } catch (e: any) {
-            if (e?.name === 'AbortError') return ''
+            const final = sanitizeCompletion(accumulated, context)
+            if (final && final !== lastYielded) {
+                yield final
+            }
+            return final
+        } catch (e: unknown) {
+            if (e instanceof Error && e.name === 'AbortError') return ''
+            if (process.env.NODE_ENV === 'development') {
+                console.warn('[inlineCompletion]', e)
+            }
             return ''
         } finally {
             externalSignal?.removeEventListener('abort', onExternalAbort)
@@ -264,232 +279,6 @@ function shouldStopStreaming(text: string, ctx: InlineCompletionContext): boolea
     if (lines.length > 12) return true
     if (/\n\s*\}\s*$/.test(text) && ctx.prefix.includes('{')) return true
     return false
-}
-
-async function* createCompletionStream(
-    provider: string,
-    apiKey: string,
-    model: string,
-    ollamaBaseUrl: string | undefined,
-    messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
-    options: {
-        temperature: number
-        maxTokens: number
-        signal: AbortSignal
-    }
-): AsyncGenerator<string, void, unknown> {
-    switch (provider) {
-        case 'openai':
-            yield* streamOpenAICompatible(
-                'https://api.openai.com/v1/chat/completions',
-                apiKey,
-                model,
-                messages,
-                options
-            )
-            break
-        case 'openrouter':
-            yield* streamOpenAICompatible(
-                'https://openrouter.ai/api/v1/chat/completions',
-                apiKey,
-                model,
-                messages,
-                {
-                    ...options,
-                    extraHeaders: {
-                        'HTTP-Referer': 'https://codex-ide.com',
-                        'X-Title': 'CodeX IDE',
-                    },
-                }
-            )
-            break
-        case 'ollama':
-            yield* streamOpenAICompatible(
-                `${(ollamaBaseUrl || 'http://localhost:11434').replace(/\/$/, '')}/v1/chat/completions`,
-                apiKey,
-                model,
-                messages,
-                options
-            )
-            break
-        case 'claude':
-            yield* streamClaudeInline(apiKey, model, messages, options)
-            break
-        case 'gemini':
-            yield* streamGeminiInline(apiKey, model, messages, options)
-            break
-    }
-}
-
-async function* streamOpenAICompatible(
-    url: string,
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    options: {
-        temperature: number
-        maxTokens: number
-        signal: AbortSignal
-        extraHeaders?: Record<string, string>
-    }
-): AsyncGenerator<string, void, unknown> {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${apiKey}`,
-            ...options.extraHeaders,
-        },
-        body: JSON.stringify({
-            model,
-            messages,
-            stream: true,
-            temperature: options.temperature,
-            max_tokens: options.maxTokens,
-            stop: ['<<<END_BEFORE>>>', '<<<CODE_BEFORE_CURSOR>>>'],
-        }),
-        signal: options.signal,
-    })
-
-    if (!response.ok) return
-
-    const reader = response.body?.getReader()
-    if (!reader) return
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6).trim()
-            if (data === '[DONE]') return
-            try {
-                const parsed = JSON.parse(data)
-                const content = parsed.choices?.[0]?.delta?.content
-                if (content) yield content
-            } catch {
-                // skip malformed chunks
-            }
-        }
-    }
-}
-
-async function* streamClaudeInline(
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    options: { temperature: number; maxTokens: number; signal: AbortSignal }
-): AsyncGenerator<string, void, unknown> {
-    const system = messages.find(m => m.role === 'system')?.content
-    const conversation = messages
-        .filter(m => m.role !== 'system')
-        .map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-            model,
-            system,
-            messages: conversation,
-            stream: true,
-            max_tokens: options.maxTokens,
-            temperature: options.temperature,
-        }),
-        signal: options.signal,
-    })
-
-    if (!response.ok) return
-    const reader = response.body?.getReader()
-    if (!reader) return
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            const data = line.slice(6).trim()
-            if (data === '[DONE]') return
-            try {
-                const event = JSON.parse(data)
-                if (
-                    event.type === 'content_block_delta' &&
-                    event.delta?.type === 'text_delta'
-                ) {
-                    yield event.delta.text
-                }
-            } catch {
-                // skip
-            }
-        }
-    }
-}
-
-async function* streamGeminiInline(
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    options: { temperature: number; maxTokens: number; signal: AbortSignal }
-): AsyncGenerator<string, void, unknown> {
-    const system = messages.find(m => m.role === 'system')?.content
-    const user = messages.find(m => m.role === 'user')?.content || ''
-
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ role: 'user', parts: [{ text: user }] }],
-                systemInstruction: system
-                    ? { parts: [{ text: system }] }
-                    : undefined,
-                generationConfig: {
-                    temperature: options.temperature,
-                    maxOutputTokens: options.maxTokens,
-                },
-            }),
-            signal: options.signal,
-        }
-    )
-
-    if (!response.ok) return
-    const reader = response.body?.getReader()
-    if (!reader) return
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
-            if (!line.startsWith('data: ')) continue
-            try {
-                const data = JSON.parse(line.slice(6))
-                const text = data.candidates?.[0]?.content?.parts?.[0]?.text
-                if (text) yield text
-            } catch {
-                // skip
-            }
-        }
-    }
 }
 
 export const inlineCompletionService = new InlineCompletionService()

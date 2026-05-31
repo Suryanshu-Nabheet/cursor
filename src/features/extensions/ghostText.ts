@@ -66,7 +66,8 @@ const ghostTextField = StateField.define<{ text: string; pos: number } | null>({
             if (effect.is(acceptGhostTextEffect)) return null
             if (effect.is(dismissGhostTextEffect)) return null
         }
-        if (tr.docChanged || tr.selection) {
+        // Only clear on document edits — tr.selection is always truthy (SelectionSet object)
+        if (tr.docChanged) {
             return null
         }
         return value
@@ -98,7 +99,7 @@ async function runInlineCompletion(view: EditorView, force = false) {
         return
     }
 
-    if (!force && ctx.linePrefix.trim().length === 0 && ctx.prefix.trim().length < 8) {
+    if (!force && ctx.prefix.trim().length < 2 && ctx.suffix.trim().length < 2) {
         return
     }
 
@@ -160,7 +161,9 @@ const ghostTextSchedulerPlugin = ViewPlugin.fromClass(
 const ghostTextTriggerPlugin = ViewPlugin.fromClass(
     class {
         update(update: ViewUpdate) {
-            if (!update.docChanged && !update.selectionSet) return
+            const fromGhostAccept = update.transactions.some(tr =>
+                tr.effects.some(e => e.is(acceptGhostTextEffect))
+            )
 
             if (update.selectionSet && !update.docChanged) {
                 inlineCompletionService.cancel()
@@ -168,10 +171,7 @@ const ghostTextTriggerPlugin = ViewPlugin.fromClass(
                 return
             }
 
-            const isUserInput = update.transactions.some(
-                tr => tr.isUserEvent('input') || tr.isUserEvent('delete')
-            )
-            if (!isUserInput) return
+            if (!update.docChanged || fromGhostAccept) return
 
             inlineCompletionService.cancel()
             update.view.dispatch({ effects: dismissGhostTextEffect.of() })
