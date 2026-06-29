@@ -520,6 +520,7 @@ export function AIChatSidebar() {
     const activeToolsSegmentIdRef = useRef<string | null>(null)
     const currentPlanRef = useRef<string | null>(null)
     const messagesRef = useRef<Message[]>([])
+    const suppressQueueEffectRef = useRef(false)
 
     useEffect(() => {
         messagesRef.current = messages
@@ -1064,6 +1065,10 @@ export function AIChatSidebar() {
 
     useEffect(() => {
         if (isGenerating || queuedPrompts.length === 0) return
+        if (suppressQueueEffectRef.current) {
+            suppressQueueEffectRef.current = false
+            return
+        }
 
         const [nextPrompt, ...remaining] = queuedPrompts
         setQueuedPrompts(remaining)
@@ -1099,6 +1104,7 @@ export function AIChatSidebar() {
 
     const handleStopGeneration = useCallback(() => {
         if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
+        const queuedAtStop = queuedPrompts
         setIsGenerating(false)
         settleUnfinishedToolCalls('Stopped by user.')
         Object.values(confirmationResolvers.current).forEach(r => {
@@ -1130,7 +1136,16 @@ export function AIChatSidebar() {
         activeTextSegmentIdRef.current = null
         activeToolsSegmentIdRef.current = null
         currentPlanRef.current = null
-    }, [settleUnfinishedToolCalls])
+
+        if (queuedAtStop.length > 0) {
+            const [nextPrompt, ...remaining] = queuedAtStop
+            suppressQueueEffectRef.current = true
+            setQueuedPrompts(remaining)
+            setTimeout(() => {
+                void beginTurn(nextPrompt, messagesRef.current)
+            }, 0)
+        }
+    }, [beginTurn, queuedPrompts, settleUnfinishedToolCalls])
 
     const handleToolApproval = useCallback((toolId: string, approved: boolean) => {
         confirmationResolvers.current[toolId]?.resolve(approved)
@@ -1314,20 +1329,30 @@ export function AIChatSidebar() {
             <div className="shrink-0 border-t border-ui-border">
                 {/* Progress bar */}
                 {isGenerating && (
-                    <div className="h-0.5 w-full overflow-hidden" style={{ background: 'color-mix(in srgb, var(--accent) 10%, transparent)' }}>
+                    <div className="h-px w-full overflow-hidden bg-ui-bg-elevated">
                         <div
-                            className="h-full w-2/5 rounded-full animate-progress"
-                            style={{ background: 'var(--accent)', boxShadow: '0 0 8px var(--accent)' }}
+                            className="h-full w-2/5 rounded-full animate-progress bg-accent opacity-70"
                         />
+                    </div>
+                )}
+                {queuedPrompts.length > 0 && (
+                    <div className="border-b border-ui-border bg-sidebar px-3 py-2">
+                        <div className="max-h-28 overflow-y-auto rounded-lg border border-ui-border bg-sidebar p-2">
+                            <div className="flex flex-col gap-1.5">
+                                {queuedPrompts.map((prompt, index) => (
+                                    <div key={`${prompt}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-ui-fg-muted">
+                                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full border border-ui-border" />
+                                        <span>{prompt}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 )}
                 <div className="p-3">
                     <div
-                        className={`rounded-lg overflow-hidden transition-all ${isGenerating
-                            ? 'border border-ui-border bg-[color-mix(in_srgb,var(--ui-bg-elevated)_70%,transparent)]'
-                            : 'border border-ui-border focus-within:border-ui-border'
-                            }`}
-                        style={{ background: isGenerating ? undefined : 'var(--input-bg)' }}
+                        className="rounded-xl overflow-hidden border border-ui-border transition-colors focus-within:border-ui-border"
+                        style={{ background: 'var(--sidebar-bg)' }}
                     >
                         <textarea
                             ref={textareaRef}
@@ -1336,43 +1361,43 @@ export function AIChatSidebar() {
                             onKeyDown={handleKeyDown}
                             placeholder={isGenerating ? 'Type the next prompt…' : 'Ask anything… (Shift+Enter for new line)'}
                             rows={1}
-                            className="w-full bg-transparent text-ui-fg text-[13px] font-mono px-3.5 py-2.5 resize-none outline-none border-none placeholder:text-ui-fg-muted placeholder:opacity-50 max-h-[200px] leading-relaxed"
+                            className="w-full min-h-[58px] bg-transparent text-ui-fg text-[13px] font-mono px-3.5 py-3 resize-none outline-none border-none placeholder:text-ui-fg-muted placeholder:opacity-70 max-h-[200px] leading-relaxed"
                         />
-                        <div className="flex items-center justify-between px-2.5 pb-2.5">
+                        <div className="flex items-center justify-between gap-3 px-3 pb-3">
                             {/* Status */}
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                                 {isGenerating && (
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-ui-border bg-sidebar px-2 py-1">
                                         <span
-                                            className="block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot shrink-0"
-                                            style={{ boxShadow: '0 0 5px var(--accent)' }}
+                                            className="block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot shrink-0 opacity-80"
                                         />
-                                        <span className="text-[10px] text-accent font-medium tracking-wide">{genStatusText}</span>
+                                        <span className="truncate text-[10px] text-ui-fg-muted font-medium tracking-wide">{genStatusText}</span>
                                     </div>
                                 )}
                                 {queuedPrompts.length > 0 && (
-                                    <span className="text-[10px] text-ui-fg-muted">
+                                    <span className="shrink-0 rounded-md border border-ui-border bg-sidebar px-2 py-1 text-[10px] text-ui-fg-muted">
                                         {queuedPrompts.length} queued
                                     </span>
                                 )}
                             </div>
                             {/* Actions */}
-                            <div className="flex items-center gap-1">
+                            <div className="flex shrink-0 items-center gap-1.5">
                                 {isGenerating && (
                                     <button
                                         onClick={handleStopGeneration}
-                                        className="w-7 h-7 flex items-center justify-center rounded border border-ui-border hover:border-danger/50 text-danger hover:bg-[color-mix(in_srgb,var(--color-error)_10%,transparent)] transition-all"
-                                        title="Stop"
+                                        className="w-8 h-8 flex items-center justify-center rounded-md border border-ui-border bg-transparent text-danger hover:bg-[color-mix(in_srgb,var(--color-error)_10%,transparent)] transition-colors"
+                                        title="Stop generation"
+                                        aria-label="Stop generation"
                                     >
-                                        <Codicon name="square-filled" style={{ fontSize: 10 }} />
+                                        <span className="h-2.5 w-2.5 rounded-full bg-current" />
                                     </button>
                                 )}
                                 <button
                                     onClick={handleSend}
                                     disabled={!input.trim()}
-                                    className={`w-7 h-7 flex items-center justify-center rounded transition-all ${input.trim()
+                                    className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${input.trim()
                                         ? 'bg-accent text-white hover:opacity-85'
-                                        : 'border border-ui-border text-ui-fg-muted opacity-40 cursor-not-allowed'
+                                        : 'border border-ui-border text-ui-fg-muted opacity-45 cursor-not-allowed'
                                         }`}
                                     title={isGenerating ? 'Queue next prompt (Enter)' : 'Send (Enter)'}
                                 >
