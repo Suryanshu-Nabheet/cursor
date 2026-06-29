@@ -17,6 +17,7 @@ import { getLeftTab, getLeftTabActive } from '../features/tools/toolSelectors'
 import { leftTabInactive } from '../features/tools/toolSlice'
 import { openFile } from '../features/globalSlice'
 import { getRootPath } from '../features/selectors'
+import { replaceInContent } from '../features/search/searchReplace'
 import _ from 'lodash'
 
 // Interfaces
@@ -112,6 +113,7 @@ function SearchComponent() {
     const [matchWholeWord, setMatchWholeWord] = useState(false)
     const [useRegex, setUseRegex] = useState(false)
     const [showDetails, setShowDetails] = useState(false) // For Include/Exclude
+    const [replaceStatus, setReplaceStatus] = useState('')
 
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -143,6 +145,8 @@ function SearchComponent() {
                 rootPath: rootPath,
                 badPaths: [], // TODO: Add exclude logic
                 caseSensitive: mCase,
+                matchWholeWord,
+                useRegex,
             })
 
             if (!out || out.length === 0) {
@@ -173,6 +177,45 @@ function SearchComponent() {
         }, 300),
         [rootPath]
     )
+
+    const replaceInFiles = async (filePaths: string[], limitPerFile?: number) => {
+        if (!query || filePaths.length === 0) return
+        setReplaceStatus('')
+        let changedFiles = 0
+        let changedMatches = 0
+
+        for (const filePath of Array.from(new Set(filePaths))) {
+            // @ts-ignore
+            const content = await connector.getFile(filePath)
+            if (typeof content !== 'string') continue
+
+            const result = replaceInContent(
+                content,
+                {
+                    query,
+                    replaceText,
+                    matchCase,
+                    useRegex,
+                    matchWholeWord,
+                },
+                limitPerFile
+            )
+
+            if (result.count > 0 && result.content !== content) {
+                // @ts-ignore
+                await connector.saveFile(filePath, result.content)
+                changedFiles += 1
+                changedMatches += result.count
+            }
+        }
+
+        setReplaceStatus(
+            changedMatches > 0
+                ? `Replaced ${changedMatches} match${changedMatches === 1 ? '' : 'es'} in ${changedFiles} file${changedFiles === 1 ? '' : 's'}.`
+                : 'No replacements applied.'
+        )
+        await handleSearch(query, matchCase)
+    }
 
     useEffect(() => {
         throttledSearch(query, matchCase)
@@ -267,6 +310,52 @@ function SearchComponent() {
                                 />
                             </div>
                         )}
+                        {isReplaceOpen && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    className="flex-1 rounded-[4px] border border-[var(--ui-border)] px-2 py-1 text-[11px] text-[var(--ui-fg)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title="Replace the first visible search result"
+                                    disabled={!query || results.length === 0}
+                                    onClick={() =>
+                                        replaceInFiles(
+                                            results
+                                                .flatMap((r) =>
+                                                    r.results.map(
+                                                        (item) =>
+                                                            item.data.path.text
+                                                    )
+                                                )
+                                                .slice(0, 1),
+                                            1
+                                        )
+                                    }
+                                >
+                                    Replace first
+                                </button>
+                                <button
+                                    className="flex-1 rounded-[4px] bg-[var(--accent)] px-2 py-1 text-[11px] font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                    title="Replace every visible search result"
+                                    disabled={!query || results.length === 0}
+                                    onClick={() =>
+                                        replaceInFiles(
+                                            results.flatMap((r) =>
+                                                r.results.map(
+                                                    (item) =>
+                                                        item.data.path.text
+                                                )
+                                            )
+                                        )
+                                    }
+                                >
+                                    Replace all
+                                </button>
+                            </div>
+                        )}
+                        {replaceStatus && (
+                            <div className="text-[11px] text-[var(--ui-fg-muted)]">
+                                {replaceStatus}
+                            </div>
+                        )}
 
                         {/* Include/Exclude Toggle */}
                         <div className="flex justify-end pt-1">
@@ -324,6 +413,9 @@ function SearchComponent() {
                             <FileResultComponent
                                 key={result.filePath}
                                 result={result}
+                                onReplaceFile={() =>
+                                    replaceInFiles([result.filePath])
+                                }
                             />
                         ))}
                     </div>
@@ -349,7 +441,13 @@ function SearchToggle({ active, onClick, icon, title }: any) {
     )
 }
 
-function FileResultComponent({ result }: { result: FileLevelResult }) {
+function FileResultComponent({
+    result,
+    onReplaceFile,
+}: {
+    result: FileLevelResult
+    onReplaceFile?: () => void
+}) {
     const [expanded, setExpanded] = useState(true)
     const iconElement = getIconElement(result.filePath)
     const rootPath = useAppSelector(getRootPath)
@@ -390,6 +488,18 @@ function FileResultComponent({ result }: { result: FileLevelResult }) {
                 <div className="ml-auto bg-[var(--ui-bg-elevated)] text-[var(--foreground)] text-[10px] px-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
                     {result.results.length}
                 </div>
+                {onReplaceFile && (
+                    <button
+                        className="ml-2 text-[10px] text-[var(--ui-fg-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100"
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            onReplaceFile()
+                        }}
+                        title="Replace all matches in this file"
+                    >
+                        Replace file
+                    </button>
+                )}
             </div>
 
             {expanded && (

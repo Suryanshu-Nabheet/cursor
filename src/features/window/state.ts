@@ -454,6 +454,12 @@ export const initialSettingsState = {
         tabSize: '4',
         theme: 'codex-dark',
         contextType: 'none',
+        aiProvider: 'ollama',
+        ollamaModel: 'qwen2.5-coder:1.5b',
+        ollamaBaseUrl: 'http://localhost:11434',
+        inlineCompletionEnabled: true,
+        inlineCompletionDelay: 300,
+        inlineCompletionMaxTokens: 64,
     },
 }
 
@@ -497,7 +503,7 @@ export const initialState = {
     errorType: 'server',
     errorInfo: '404, request bad',
 
-    version: '0.0.11',
+    version: '1.0.0',
 
     showRemotePopup: false,
     showClonePopup: false,

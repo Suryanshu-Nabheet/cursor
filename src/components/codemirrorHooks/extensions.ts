@@ -323,7 +323,9 @@ export function useExtensions({
     useEffect(() => {
         const main = async () => {
             const syntax = await syntaxBundle(filePath)
-            editorRef.current.view?.dispatch({
+            const view = editorRef.current?.view
+            if (!view) return
+            view.dispatch({
                 effects: syntaxCompartment.reconfigure(syntax),
             })
         }

@@ -69,12 +69,12 @@
 /* Tool call approval badge */
 .tool-call-approval-badge {
     font-size: 10px;
-    font-weight: 600;
-    color: var(--color-warning);
+    font-weight: 500;
+    color: var(--ui-fg-muted);
     padding: 2px 6px;
     border-radius: 3px;
-    background: color-mix(in srgb, var(--color-warning) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-warning) 25%, transparent);
+    background: var(--ui-bg-elevated);
+    border: 1px solid var(--ui-border);
 }
 
 /* Tool call done state */
@@ -301,25 +301,22 @@ pre[class*="language-"] {
 }
 
 .tool-call-accept {
-    background: color-mix(in srgb, var(--color-success) 10%, transparent);
+    background: transparent;
     color: var(--color-success);
-    border-color: color-mix(in srgb, var(--color-success) 20%, transparent);
+    border-color: var(--ui-border);
 }
 
 .tool-call-accept:hover {
-    background: color-mix(in srgb, var(--color-success) 20%, transparent);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-success) 20%, transparent);
+    background: var(--ui-hover);
 }
 
 .tool-call-reject {
-    background: color-mix(in srgb, var(--color-error) 10%, transparent);
-    color: var(--color-error);
-    border-color: color-mix(in srgb, var(--color-error) 20%, transparent);
+    background: transparent;
+    color: var(--ui-fg-muted);
+    border-color: var(--ui-border);
 }
 
 .tool-call-reject:hover {
-    background: color-mix(in srgb, var(--color-error) 20%, transparent);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px color-mix(in srgb, var(--color-error) 20%, transparent);
+    background: var(--ui-hover);
+    color: var(--ui-fg);
 }

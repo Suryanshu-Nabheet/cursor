@@ -10,7 +10,7 @@ import { Codicon } from './codicon'
 import * as ts from '../features/tools/toolSlice'
 import { getActiveProviderAPIKey } from '../features/ai/apiKeyUtils'
 import { streamAIResponseWithTools } from '../features/ai/providersWithTools'
-import { AI_TOOLS, AI_SYSTEM_PROMPT, executeToolCall } from '../features/ai/tools'
+import { AI_TOOLS, executeToolCall } from '../features/ai/tools'
 import { buildWorkspaceContext, injectWorkspaceContext } from '../features/ai/workspaceContext'
 import { store } from '../app/store'
 import { openFile, fileWasUpdated } from '../features/globalSlice'
@@ -138,11 +138,11 @@ function StreamingPlainText({
     if (!text && !isStreaming) return null
     return (
         <div
-            className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words ${
+            className={`text-[13px] leading-relaxed break-words ${
                 muted ? 'text-ui-fg-muted opacity-80' : 'text-ui-fg'
             }`}
         >
-            {text}
+            {text ? <AiMarkdown content={text} /> : null}
             {isStreaming && <TypingCursor />}
         </div>
     )
@@ -245,14 +245,12 @@ function ToolCallsGroup({
         if (pendingApproval) setExpanded(true)
     }, [pendingApproval])
 
-    const borderClass = pendingApproval
-        ? 'border-warn/40 shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-warning)_12%,transparent)]'
-        : 'border-ui-border'
+    const borderClass = 'border-ui-border'
 
     const statusIcon = runningTool ? (
         <Codicon name="loading" className="codicon-modifier-spin" style={{ fontSize: 11, color: 'var(--accent)' }} />
     ) : pendingApproval ? (
-        <Codicon name="shield" style={{ fontSize: 11, color: 'var(--color-warning)' }} />
+        <Codicon name="shield" style={{ fontSize: 11, color: 'var(--ui-fg-muted)' }} />
     ) : allDone ? (
         <Codicon name="check-all" style={{ fontSize: 11, color: 'var(--color-success)' }} />
     ) : (
@@ -290,7 +288,7 @@ function ToolCallsGroup({
                 </div>
             </button>
             {expanded && (
-                <div className="border-t border-ui-border divide-y divide-[rgba(255,255,255,0.03)]">
+                <div className="border-t border-ui-border divide-y divide-ui-border">
                     {toolCalls.map(tc => (
                         <ToolCallCard
                             key={tc.id}
@@ -504,6 +502,7 @@ export function AIChatSidebar() {
     const [currentPlan, setCurrentPlanState] = useState<string | null>(null)
     const [input, setInput] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
+    const [queuedPrompts, setQueuedPrompts] = useState<string[]>([])
     const [streamingSegments, setStreamingSegments] = useState<TurnSegment[]>([])
     const [streamPhase, setStreamPhase] = useState<StreamPhase>('idle')
 
@@ -520,6 +519,11 @@ export function AIChatSidebar() {
     const activeTextSegmentIdRef = useRef<string | null>(null)
     const activeToolsSegmentIdRef = useRef<string | null>(null)
     const currentPlanRef = useRef<string | null>(null)
+    const messagesRef = useRef<Message[]>([])
+
+    useEffect(() => {
+        messagesRef.current = messages
+    }, [messages])
 
     const setCurrentPlan = useCallback((plan: string | null) => {
         currentPlanRef.current = plan
@@ -617,6 +621,37 @@ export function AIChatSidebar() {
         syncSegments()
     }, [ensureToolsSegment, syncSegments])
 
+    const settleUnfinishedToolCalls = useCallback((reason: string) => {
+        let changed = false
+        segmentsRef.current = segmentsRef.current.map(seg => {
+            if (seg.type !== 'tools') return seg
+
+            const toolCalls = seg.toolCalls.map(toolCall => {
+                if (
+                    toolCall.success !== undefined ||
+                    (!toolCall.isPending && !toolCall.isExecuting && !toolCall.needsApproval)
+                ) {
+                    return toolCall
+                }
+
+                changed = true
+                return {
+                    ...toolCall,
+                    isPending: false,
+                    isExecuting: false,
+                    needsApproval: false,
+                    success: false,
+                    result: reason,
+                }
+            })
+
+            return { ...seg, toolCalls }
+        })
+
+        if (changed) syncSegments()
+        return changed
+    }, [syncSegments])
+
     // ── Computed ─────────────────────────────────────────────────────────────
     const isAIConfigured = useMemo(() => {
         const p = settings.aiProvider
@@ -693,7 +728,12 @@ export function AIChatSidebar() {
 
     // ── THE CORE FIX: processTurn updates the single message, NEVER creates new ones ──
     const processTurn = useCallback(
-        async (currentMessages: any[], currentModel: any, provider: any, apiKey: any) => {
+        async (
+            currentMessages: any[],
+            currentModel: any,
+            provider: any,
+            apiKey: any
+        ) => {
             let thisTurnText = ''
             const thisTurnToolCalls: ToolCallState[] = []
             thisTurnToolCallIdsRef.current = new Set()
@@ -710,7 +750,7 @@ export function AIChatSidebar() {
 
             const providerConfig = {
                 provider, apiKey, enabled: true, defaultModel: currentModel,
-                baseUrl: (settings as any).ollama?.baseUrl,
+                baseUrl: settings.ollamaBaseUrl || 'http://localhost:11434',
             }
 
             try {
@@ -786,8 +826,13 @@ export function AIChatSidebar() {
                     } else if (chunk.type === 'error') {
                         thisTurnText += `\n\nError: ${chunk.error}`
                         updateTurnText(thisTurnText)
+                        settleUnfinishedToolCalls(chunk.error || 'Tool call failed before execution.')
                     }
                 }
+
+                settleUnfinishedToolCalls(
+                    'Tool call did not complete. The model returned an incomplete or malformed tool request.'
+                )
 
                 if (thisTurnToolCalls.length === 0) {
                     finalizeAssistantMessage()
@@ -830,8 +875,12 @@ export function AIChatSidebar() {
                                     toolResults.push({ toolCallId: toolCall.id, result: 'User rejected', name: toolCall.name })
                                     continue
                                 }
-                            } catch {
-                                throw new Error('Aborted')
+                            } catch (error: any) {
+                                delete confirmationResolvers.current[toolCall.id]
+                                if (error.message === 'Aborted') {
+                                    throw new Error('Aborted')
+                                }
+                                throw error
                             }
                         }
 
@@ -847,7 +896,8 @@ export function AIChatSidebar() {
                             { id: toolCall.id, name: toolCall.name, arguments: toolCall.arguments },
                             rootPath || '',
                             dispatch,
-                            { openFile, fileWasUpdated }
+                            { openFile, fileWasUpdated },
+                            { signal: abortControllerRef.current?.signal }
                         )
 
                         toolResults.push({ toolCallId: toolCall.id, result: result.result, name: toolCall.name })
@@ -894,6 +944,7 @@ export function AIChatSidebar() {
             } catch (error: any) {
                 if (error.message === 'Aborted') throw error
                 console.error('processTurn error:', error)
+                settleUnfinishedToolCalls(error.message || 'Agent turn failed.')
                 setMessages(prev => prev.map(m =>
                     m.id === activeAssistantIdRef.current
                         ? { ...m, content: (m.content ? m.content + '\n\n' : '') + `**Error:** ${error.message}` }
@@ -901,12 +952,13 @@ export function AIChatSidebar() {
                 ))
             }
         },
-        [rootPath, settings, dispatch, setCurrentPlan, updateTurnText, upsertToolCall, finalizeAssistantMessage]
+        [rootPath, settings, dispatch, setCurrentPlan, updateTurnText, upsertToolCall, settleUnfinishedToolCalls, finalizeAssistantMessage]
     )
 
     // ── Send ─────────────────────────────────────────────────────────────────
-    const handleSend = useCallback(async () => {
-        if (!input.trim() || isGenerating) return
+    const beginTurn = useCallback(async (prompt: string, history: Message[]) => {
+        const trimmedPrompt = prompt.trim()
+        if (!trimmedPrompt) return
         if (!isAIConfigured) {
             dispatch(setSettingsTab('AI'))
             dispatch(toggleSettings())
@@ -916,7 +968,7 @@ export function AIChatSidebar() {
         const userMsg: Message = {
             id: Date.now().toString(),
             role: 'user',
-            content: input.trim(),
+            content: trimmedPrompt,
             timestamp: new Date(),
         }
 
@@ -936,9 +988,8 @@ export function AIChatSidebar() {
             toolCalls: [],
         }
 
-        const updatedMessages = [...messages, userMsg, placeholder]
+        const updatedMessages = [...history, userMsg, placeholder]
         setMessages(updatedMessages)
-        setInput('')
         setIsGenerating(true)
         setStreamingSegments([])
         setCurrentPlan(null)
@@ -956,7 +1007,7 @@ export function AIChatSidebar() {
             )
             const apiMessages = injectWorkspaceContext(
                 [
-                    ...messages.flatMap((m): any[] => {
+                    ...history.flatMap((m): any[] => {
                         if (m.role === 'user') return [{ role: 'user', content: m.content }]
                         const msgs: any[] = []
                         const tcs = m.toolCalls?.map(tc => ({
@@ -996,7 +1047,28 @@ export function AIChatSidebar() {
             currentPlanRef.current = null
             abortControllerRef.current = null
         }
-    }, [input, isGenerating, isAIConfigured, messages, getModelToUse, rootPath, activeFilePath, dispatch, processTurn])
+    }, [isAIConfigured, getModelToUse, dispatch, processTurn, setCurrentPlan])
+
+    const handleSend = useCallback(() => {
+        const prompt = input.trim()
+        if (!prompt) return
+
+        setInput('')
+        if (isGenerating) {
+            setQueuedPrompts(prev => [...prev, prompt])
+            return
+        }
+
+        void beginTurn(prompt, messagesRef.current)
+    }, [beginTurn, input, isGenerating])
+
+    useEffect(() => {
+        if (isGenerating || queuedPrompts.length === 0) return
+
+        const [nextPrompt, ...remaining] = queuedPrompts
+        setQueuedPrompts(remaining)
+        void beginTurn(nextPrompt, messagesRef.current)
+    }, [beginTurn, isGenerating, queuedPrompts])
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -1004,6 +1076,7 @@ export function AIChatSidebar() {
 
     const handleClearChat = useCallback(() => {
         setMessages([])
+        setQueuedPrompts([])
         setStreamingSegments([])
         setCurrentPlan(null)
         setStreamPhase('idle')
@@ -1014,13 +1087,28 @@ export function AIChatSidebar() {
         thisTurnToolCallIdsRef.current = new Set()
         if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
         setIsGenerating(false)
-        Object.values(confirmationResolvers.current).forEach(r => { try { r.reject() } catch { } })
+        Object.values(confirmationResolvers.current).forEach(r => {
+            try {
+                r.reject()
+            } catch {
+                // Resolver may already be settled during cancellation.
+            }
+        })
         confirmationResolvers.current = {}
     }, [])
 
     const handleStopGeneration = useCallback(() => {
         if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null }
         setIsGenerating(false)
+        settleUnfinishedToolCalls('Stopped by user.')
+        Object.values(confirmationResolvers.current).forEach(r => {
+            try {
+                r.reject()
+            } catch {
+                // Resolver may already be settled during cancellation.
+            }
+        })
+        confirmationResolvers.current = {}
         if (activeAssistantIdRef.current) {
             const derived = messageFromSegments(segmentsRef.current)
             setMessages(prev => prev.map(m =>
@@ -1042,9 +1130,7 @@ export function AIChatSidebar() {
         activeTextSegmentIdRef.current = null
         activeToolsSegmentIdRef.current = null
         currentPlanRef.current = null
-        Object.values(confirmationResolvers.current).forEach(r => r.reject())
-        confirmationResolvers.current = {}
-    }, [])
+    }, [settleUnfinishedToolCalls])
 
     const handleToolApproval = useCallback((toolId: string, approved: boolean) => {
         confirmationResolvers.current[toolId]?.resolve(approved)
@@ -1238,8 +1324,8 @@ export function AIChatSidebar() {
                 <div className="p-3">
                     <div
                         className={`rounded-lg overflow-hidden transition-all ${isGenerating
-                            ? 'shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent)_45%,transparent)] bg-[color-mix(in_srgb,var(--accent)_2%,transparent)]'
-                            : 'border border-ui-border focus-within:border-[rgba(255,255,255,0.18)]'
+                            ? 'border border-ui-border bg-[color-mix(in_srgb,var(--ui-bg-elevated)_70%,transparent)]'
+                            : 'border border-ui-border focus-within:border-ui-border'
                             }`}
                         style={{ background: isGenerating ? undefined : 'var(--input-bg)' }}
                     >
@@ -1248,9 +1334,8 @@ export function AIChatSidebar() {
                             value={input}
                             onChange={e => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder={isGenerating ? 'AI is working…' : 'Ask anything… (Shift+Enter for new line)'}
+                            placeholder={isGenerating ? 'Type the next prompt…' : 'Ask anything… (Shift+Enter for new line)'}
                             rows={1}
-                            disabled={isGenerating}
                             className="w-full bg-transparent text-ui-fg text-[13px] font-mono px-3.5 py-2.5 resize-none outline-none border-none placeholder:text-ui-fg-muted placeholder:opacity-50 max-h-[200px] leading-relaxed"
                         />
                         <div className="flex items-center justify-between px-2.5 pb-2.5">
@@ -1264,6 +1349,11 @@ export function AIChatSidebar() {
                                         />
                                         <span className="text-[10px] text-accent font-medium tracking-wide">{genStatusText}</span>
                                     </div>
+                                )}
+                                {queuedPrompts.length > 0 && (
+                                    <span className="text-[10px] text-ui-fg-muted">
+                                        {queuedPrompts.length} queued
+                                    </span>
                                 )}
                             </div>
                             {/* Actions */}
@@ -1279,12 +1369,12 @@ export function AIChatSidebar() {
                                 )}
                                 <button
                                     onClick={handleSend}
-                                    disabled={!input.trim() || isGenerating}
-                                    className={`w-7 h-7 flex items-center justify-center rounded transition-all ${input.trim() && !isGenerating
+                                    disabled={!input.trim()}
+                                    className={`w-7 h-7 flex items-center justify-center rounded transition-all ${input.trim()
                                         ? 'bg-accent text-white hover:opacity-85'
                                         : 'border border-ui-border text-ui-fg-muted opacity-40 cursor-not-allowed'
                                         }`}
-                                    title="Send (Enter)"
+                                    title={isGenerating ? 'Queue next prompt (Enter)' : 'Send (Enter)'}
                                 >
                                     <Codicon name="send" style={{ fontSize: 12 }} />
                                 </button>

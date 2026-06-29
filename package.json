@@ -3,7 +3,7 @@
     "name": "codex",
     "author": {
         "name": "Suryanshu Nabheet",
-        "email": "suryanshu@gmail.com"
+        "email": "suryanshunab@gmail.com"
     },
     "productName": "CodeX",
     "version": "1.0.0",
@@ -156,6 +156,7 @@
         "watcher": "^2.2.2",
         "webpack": "^5.75.0",
         "xterm": "^4.19.0",
+        "xterm-addon-fit": "^0.5.0",
         "xterm-addon-search": "^0.9.0",
         "xterm-addon-web-links": "^0.6.0"
     }

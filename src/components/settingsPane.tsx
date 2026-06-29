@@ -2,6 +2,7 @@ import { useAppDispatch, useAppSelector } from '../app/hooks'
 import cx from 'classnames'
 import * as ssel from '../features/settings/settingsSelectors'
 import { DEFAULT_MODELS, AIProvider } from '../features/ai/providers'
+import { getInlineCompletionStatus } from '../features/ai/inlineCompletion'
 import {
     changeSettings,
     toggleSettings,
@@ -376,6 +377,7 @@ function AISettings({ onSave }: { onSave?: () => void }) {
     const [selectedProvider, setSelectedProvider] = useState<any>(
         settings.aiProvider || 'ollama'
     )
+    const inlineStatus = getInlineCompletionStatus(settings)
 
     const isConfigured = (id: string) => {
         if (id === 'openai')
@@ -476,6 +478,8 @@ function AISettings({ onSave }: { onSave?: () => void }) {
                         settingKeyCore={
                             selectedProvider === 'openrouter'
                                 ? 'openRouter'
+                                : selectedProvider === 'openai'
+                                ? 'openAI'
                                 : selectedProvider
                         }
                         providerName={
@@ -517,25 +521,88 @@ function AISettings({ onSave }: { onSave?: () => void }) {
                             className="w-4 h-4 accent-[var(--accent)]"
                         />
                     </label>
-                    <div>
-                        <label className="block text-xs font-medium text-[var(--ui-fg)] mb-2">
-                            Trigger delay (ms)
-                        </label>
-                        <input
-                            type="number"
-                            min={150}
-                            max={2000}
-                            step={50}
-                            value={settings.inlineCompletionDelay ?? 400}
-                            onChange={e =>
-                                dispatch(
-                                    changeSettings({
-                                        inlineCompletionDelay: Number(e.target.value) || 400,
-                                    })
-                                )
-                            }
-                            className="w-full max-w-[140px] px-3 py-2 rounded-md bg-black/20 border border-[var(--ui-border)] text-sm text-[var(--ui-fg)]"
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-medium text-[var(--ui-fg)] mb-2">
+                                Trigger delay (ms)
+                            </label>
+                            <input
+                                type="number"
+                                min={120}
+                                max={1500}
+                                step={50}
+                                value={settings.inlineCompletionDelay ?? 300}
+                                onChange={e =>
+                                    dispatch(
+                                        changeSettings({
+                                            inlineCompletionDelay:
+                                                Number(e.target.value) || 300,
+                                        })
+                                    )
+                                }
+                                className="w-full px-3 py-2 rounded-md bg-black/20 border border-[var(--ui-border)] text-sm text-[var(--ui-fg)]"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-[var(--ui-fg)] mb-2">
+                                Max tokens
+                            </label>
+                            <input
+                                type="number"
+                                min={24}
+                                max={160}
+                                step={16}
+                                value={settings.inlineCompletionMaxTokens ?? 64}
+                                onChange={e =>
+                                    dispatch(
+                                        changeSettings({
+                                            inlineCompletionMaxTokens:
+                                                Number(e.target.value) || 64,
+                                        })
+                                    )
+                                }
+                                className="w-full px-3 py-2 rounded-md bg-black/20 border border-[var(--ui-border)] text-sm text-[var(--ui-fg)]"
+                            />
+                        </div>
+                    </div>
+                    <div className="rounded-lg border border-[var(--ui-border)] bg-black/10 px-3 py-2 text-xs text-[var(--ui-fg-muted)]">
+                        <div className="flex items-center justify-between gap-3">
+                            <span>Completion stack</span>
+                            <span
+                                className={cx(
+                                    'font-medium',
+                                    inlineStatus.enabled
+                                        ? 'text-[var(--color-success)]'
+                                        : 'text-[var(--color-warning)]'
+                                )}
+                            >
+                                {inlineStatus.enabled
+                                    ? 'AI ghost text enabled'
+                                    : settings.inlineCompletionEnabled === false
+                                    ? 'AI completion disabled'
+                                    : 'AI completion unavailable'}
+                            </span>
+                        </div>
+                        <p className="mt-1">
+                            Inline suggestions are generated by the configured AI provider. LSP remains available for diagnostics, hover, and navigation. {inlineStatus.reason}.
+                        </p>
+                        <p className="mt-1">
+                            Automatic typing completions use a low-latency fast path. Manual trigger uses richer agentic context.
+                        </p>
+                        {settings.inlineCompletionEnabled === false && (
+                            <button
+                                className="mt-2 rounded-md bg-[var(--accent)] px-3 py-1.5 text-[11px] font-medium text-white hover:bg-[var(--accent-hover)]"
+                                onClick={() =>
+                                    dispatch(
+                                        changeSettings({
+                                            inlineCompletionEnabled: true,
+                                        })
+                                    )
+                                }
+                            >
+                                Enable AI completion
+                            </button>
+                        )}
                     </div>
                 </div>
             </Section>

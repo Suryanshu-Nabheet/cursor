@@ -12,6 +12,8 @@ const clientConnections: {
     [key: string]: { lspName: string; client: LanguageServerClient }
 } = {}
 
+const pendingConnections: Partial<Record<string, Promise<string>>> = {}
+
 export const initialLanguageServerState = {
     languageServers: Object.fromEntries(
         LSLanguages.map((l) => [
@@ -27,7 +29,7 @@ export const initialLanguageServerState = {
 
 export const installLanguageServer = createAsyncThunk(
     'settings/installLanguageServer',
-    async (languageServerName: string, { rejectWithValue, getState }) => {
+    async (languageServerName: string, { getState }) => {
         const rootDir = (<FullState>getState()).global.rootPath
         // @ts-ignore
         await connector.installLS(languageServerName, rootDir)
@@ -37,31 +39,38 @@ export const installLanguageServer = createAsyncThunk(
 
 export const runLanguageServer = createAsyncThunk(
     'settings/runLanguageServer',
-    async (languageServerName: string, { getState, rejectWithValue }) => {
+    async (languageServerName: string, { getState }) => {
         if (clientConnections[languageServerName]) {
             // Already running
             return languageServerName
+        } else if (pendingConnections[languageServerName]) {
+            return await pendingConnections[languageServerName]!
         } else {
             const rootPath = (getState() as FullState).global.rootPath!
 
-            // @ts-ignore
-            await connector.installLS(languageServerName, rootPath)
+            pendingConnections[languageServerName] = (async () => {
+                // @ts-ignore
+                await connector.installLS(languageServerName, rootPath)
 
-            // @ts-ignore
-            await connector.startLS(languageServerName, rootPath)
+                const newClient = new LanguageServerClient({
+                    language: languageServerName,
+                    rootUri: URI.file(rootPath).toString(),
+                    workspaceFolders: null,
+                })
+                clientConnections[languageServerName] = {
+                    lspName: languageServerName,
+                    client: newClient,
+                }
+                await newClient.initializePromise
 
-            const newClient = new LanguageServerClient({
-                language: languageServerName,
-                rootUri: URI.file(rootPath).toString(),
-                workspaceFolders: null,
-            })
-            clientConnections[languageServerName] = {
-                lspName: languageServerName,
-                client: newClient,
+                return languageServerName
+            })()
+
+            try {
+                return await pendingConnections[languageServerName]
+            } finally {
+                delete pendingConnections[languageServerName]
             }
-            await newClient.initializePromise
-
-            return languageServerName
         }
     }
 )
@@ -81,7 +90,7 @@ export const stopLanguageServer = createAsyncThunk(
 
 export const startConnections = createAsyncThunk(
     'lsp/startConnections',
-    async (rootUri: string, { getState, dispatch }) => {
+    async (rootUri: string, { dispatch }) => {
         await dispatch(killAllConnections(null))
 
         const maybeRun = async (languageServerName: string) => {
@@ -100,14 +109,14 @@ export const startConnections = createAsyncThunk(
 
 export const killConnection = createAsyncThunk(
     'lsp/killConnection',
-    async (languageServerName: string, { getState, rejectWithValue }) => {
+    async (languageServerName: string) => {
         if (clientConnections[languageServerName]) {
             // Already running
             clientConnections[languageServerName].client.close()
             delete clientConnections[languageServerName]
         }
         // @ts-ignore
-        await connector.killLanguageServer(languageServerName)
+        await connector.killLS(languageServerName)
 
         return languageServerName
     }
@@ -148,7 +157,10 @@ export const getDefinition = createAsyncThunk(
         )
         const origDoc = Text.of(origContents.split('\n'))
 
-        const client = clientConnections[lspName].client
+        const client = clientConnections[lspName]?.client
+        if (!client) {
+            return null
+        }
 
         const gotoResult = await client.getDefinition({
             path: payload.path,
@@ -158,7 +170,8 @@ export const getDefinition = createAsyncThunk(
             return null
         }
 
-        let { newPath, range } = gotoResult
+        const { range } = gotoResult
+        let { newPath } = gotoResult
 
         newPath = newPath.replace(/\//g, connector.PLATFORM_DELIMITER)
 
@@ -168,7 +181,7 @@ export const getDefinition = createAsyncThunk(
         } else if (response.payload == null) {
             return null
         }
-        const { fileId, contents } = response.payload
+        const { fileId } = response.payload
 
         return { fileId, newStartPos: range.start, newEndPos: range.end }
     }
@@ -234,6 +247,7 @@ export const languageServerSlice = createSlice({
             installLanguageServer.fulfilled,
             (state: LanguageServerState, action) => {
                 const languageName = action.payload
+                if (!languageName) return
                 if (state.languageServers[languageName]) {
                     state.languageServers[languageName].installed = true
                 } else {
@@ -250,6 +264,7 @@ export const languageServerSlice = createSlice({
             runLanguageServer.fulfilled,
             (state: LanguageServerState, action) => {
                 const languageName = action.payload
+                if (!languageName) return
                 if (state.languageServers[languageName]) {
                     state.languageServers[languageName].running = true
                     state.languageServers[languageName].installed = true
@@ -267,6 +282,7 @@ export const languageServerSlice = createSlice({
             stopLanguageServer.fulfilled,
             (state: LanguageServerState, action) => {
                 const languageName = action.payload
+                if (!languageName) return
                 if (state.languageServers[languageName]) {
                     state.languageServers[languageName].running = false
                 } else {
@@ -281,5 +297,3 @@ export const languageServerSlice = createSlice({
     },
     reducers: {},
 })
-
-export const {} = languageServerSlice.actions

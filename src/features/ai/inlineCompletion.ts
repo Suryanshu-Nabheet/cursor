@@ -24,24 +24,93 @@ export interface InlineCompletionContext {
     indent: string
 }
 
-export function isInlineCompletionEnabled(settings: Settings): boolean {
-    if (settings.inlineCompletionEnabled === false) return false
+export type InlineCompletionMode = 'fast' | 'agentic'
+
+export interface NormalizedInlineCompletionOptions {
+    delayMs: number
+    maxTokens: number
+    timeoutMs: number
+}
+
+export interface InlineCompletionStatus {
+    enabled: boolean
+    provider: string
+    configured: boolean
+    reason: string
+}
+
+export function getInlineCompletionStatus(
+    settings: Settings
+): InlineCompletionStatus {
+    if (settings.inlineCompletionEnabled === false) {
+        return {
+            enabled: false,
+            provider: settings.aiProvider || 'ollama',
+            configured: false,
+            reason: 'Enable inline completion to start AI suggestions',
+        }
+    }
+
     const provider = settings.aiProvider || 'ollama'
-    if (provider === 'ollama') return true
-    if (provider === 'openai') return !!(settings.useOpenAIKey && settings.openAIKey)
-    if (provider === 'openrouter') return !!(settings.useOpenRouterKey && settings.openRouterKey)
-    if (provider === 'gemini') return !!(settings.useGeminiKey && settings.geminiKey)
-    if (provider === 'claude') return !!(settings.useClaudeKey && settings.claudeKey)
-    return false
+    if (provider === 'ollama') {
+        return {
+            enabled: true,
+            provider,
+            configured: true,
+            reason: `Using ${settings.ollamaModel || 'local Ollama model'}`,
+        }
+    }
+
+    const configured =
+        provider === 'openai'
+            ? !!(settings.useOpenAIKey && settings.openAIKey)
+            : provider === 'openrouter'
+            ? !!(settings.useOpenRouterKey && settings.openRouterKey)
+            : provider === 'gemini'
+            ? !!(settings.useGeminiKey && settings.geminiKey)
+            : provider === 'claude'
+            ? !!(settings.useClaudeKey && settings.claudeKey)
+            : false
+
+    return {
+        enabled: configured,
+        provider,
+        configured,
+        reason: configured
+            ? `Using ${provider}`
+            : `Add a ${provider} API key or switch to Ollama`,
+    }
+}
+
+export function isInlineCompletionEnabled(settings: Settings): boolean {
+    return getInlineCompletionStatus(settings).enabled
+}
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+    const number = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(number)) return fallback
+    return Math.max(min, Math.min(max, Math.round(number)))
+}
+
+export function normalizeInlineCompletionOptions(
+    settings: Settings
+): NormalizedInlineCompletionOptions {
+    return {
+        delayMs: clampNumber(settings.inlineCompletionDelay, 120, 1500, 300),
+        maxTokens: clampNumber(settings.inlineCompletionMaxTokens, 24, 160, 64),
+        timeoutMs: clampNumber((settings as any).inlineCompletionTimeoutMs, 2000, 15000, 8000),
+    }
 }
 
 export function extractInlineCompletionContext(
     view: EditorView,
-    filepath?: string
+    filepath?: string,
+    mode: InlineCompletionMode = 'fast'
 ): InlineCompletionContext | null {
     const state = view.state
     const selection = state.selection.main
     if (!selection.empty) return null
+    if (state.doc.length > 1_000_000) return null
 
     const pos = selection.head
     const line = state.doc.lineAt(pos)
@@ -50,9 +119,11 @@ export function extractInlineCompletionContext(
     const indent = indentMatch?.[1] ?? ''
 
     const startLine = line.number
-    const prefixFrom = state.doc.line(Math.max(1, startLine - 120)).from
+    const prefixLines = mode === 'agentic' ? 120 : 48
+    const suffixLines = mode === 'agentic' ? 40 : 16
+    const prefixFrom = state.doc.line(Math.max(1, startLine - prefixLines)).from
     const suffixTo = state.doc.line(
-        Math.min(state.doc.lines, startLine + 40)
+        Math.min(state.doc.lines, startLine + suffixLines)
     ).to
 
     const prefix = state.doc.sliceString(prefixFrom, pos)
@@ -60,6 +131,7 @@ export function extractInlineCompletionContext(
 
     const path = filepath || getViewFilePath(view)
     const language = getLanguageFromFilename(path)
+    if (language === 'plaintext' && !path.includes('.')) return null
 
     return {
         prefix,
@@ -95,15 +167,29 @@ export function sanitizeCompletion(
 
     text = text.trimEnd()
 
-    // Strip duplicate of what's already typed on this line
-    if (context.linePrefix && text.startsWith(context.linePrefix)) {
+    // Strip duplicate of what's already typed on this line. Do not strip
+    // indentation-only prefixes; those are part of the insertion context.
+    let strippedLinePrefix = false
+    if (context.linePrefix.trim() && text.startsWith(context.linePrefix)) {
         text = text.slice(context.linePrefix.length)
+        strippedLinePrefix = true
+    }
+
+    const typedToken = context.linePrefix.match(/[A-Za-z0-9_$]+$/)?.[0] ?? ''
+    if (!strippedLinePrefix && typedToken && text.startsWith(typedToken)) {
+        text = text.slice(typedToken.length)
+        strippedLinePrefix = true
     }
 
     // Ensure first line respects cursor indent when mid-block
-    if (text && context.indent && !text.startsWith(context.indent)) {
+    if (
+        text &&
+        context.indent &&
+        !strippedLinePrefix &&
+        !text.startsWith(context.indent)
+    ) {
         const first = text.split('\n')[0]
-        if (first.trim() && !/^[}\]\);]/.test(first.trim())) {
+        if (first.trim() && !/^(?:}|\]|\)|;)/.test(first.trim())) {
             text = context.indent + first.trimStart() + text.slice(first.length)
         }
     }
@@ -117,11 +203,29 @@ export function sanitizeCompletion(
     return text
 }
 
+export function normalizeAutomaticCompletion(text: string): string {
+    const cleaned = text
+        .replace(/\r/g, '')
+        .split('\n')
+        .map(line => line.trimEnd())
+        .filter((line, index) => index === 0 || line.trim().length > 0)
+        .join('\n')
+        .trimEnd()
+
+    if (!cleaned) return ''
+
+    const lines = cleaned.split('\n')
+    if (lines.length === 1) return lines[0].slice(0, 180)
+
+    const firstNonEmpty = lines.find(line => line.trim().length > 0) || ''
+    return firstNonEmpty.slice(0, 180)
+}
+
 function isLikelyCode(line: string): boolean {
     const t = line.trim()
     if (!t) return true
     if (/^(\/\/|\/\*|#|--|\*|\/\/\/)/.test(t)) return true
-    if (/^[a-zA-Z_$@<>\[\(]/.test(t)) return true
+    if (/^(?:[a-zA-Z_$@<>]|\[|\()/.test(t)) return true
     if (/^\s+\S/.test(line)) return true
     return false
 }
@@ -136,31 +240,71 @@ async function buildProviderConfig(
         provider: info.provider as AIProvider,
         apiKey: info.apiKey,
         enabled: true,
-        defaultModel: info.model.replace(':free', ''),
+        defaultModel: info.model,
         baseUrl: settings.ollamaBaseUrl || 'http://localhost:11434',
     }
 }
 
+function buildFastCompletionPrompt(context: InlineCompletionContext) {
+    const suffix = context.suffix.slice(0, 900)
+    const prefix = context.prefix.slice(-2200)
+    return [
+        {
+            role: 'system' as const,
+            content:
+                'You are an expert low-latency code completion engine. Return only a short code continuation for the cursor. No markdown, no prose, no explanations.',
+        },
+        {
+            role: 'user' as const,
+            content: [
+                `Language: ${context.language}`,
+                `File: ${context.filepath}`,
+                '<prefix>',
+                prefix,
+                '</prefix>',
+                '<suffix>',
+                suffix,
+                '</suffix>',
+                'Complete at the cursor. Return only the next short code continuation, preferably one line.',
+            ].join('\n'),
+        },
+    ]
+}
+
 class InlineCompletionService {
-    private abortController: AbortController | null = null
-    private activeRequestId = 0
+    private abortControllers = new Map<string, AbortController>()
+    private activeRequestIds = new Map<string, number>()
     lastError: string | null = null
 
-    cancel() {
-        this.abortController?.abort()
-        this.abortController = null
+    cancel(requestKey = 'global') {
+        this.abortControllers.get(requestKey)?.abort()
+        this.abortControllers.delete(requestKey)
     }
 
     async *stream(
         view: EditorView,
         context: InlineCompletionContext,
-        externalSignal?: AbortSignal
+        externalSignal?: AbortSignal,
+        mode: InlineCompletionMode = 'fast',
+        requestKey = 'global'
     ): AsyncGenerator<string, string, unknown> {
-        this.cancel()
+        this.cancel(requestKey)
         this.lastError = null
-        const requestId = ++this.activeRequestId
+        const requestId = (this.activeRequestIds.get(requestKey) ?? 0) + 1
+        this.activeRequestIds.set(requestKey, requestId)
         const controller = new AbortController()
-        this.abortController = controller
+        this.abortControllers.set(requestKey, controller)
+        let timedOut = false
+        const timeoutMs =
+            mode === 'agentic'
+                ? 30000
+                : normalizeInlineCompletionOptions(
+                      store.getState().settingsState.settings
+                  ).timeoutMs
+        const timeout = setTimeout(() => {
+            timedOut = true
+            controller.abort()
+        }, timeoutMs)
 
         const onExternalAbort = () => controller.abort()
         externalSignal?.addEventListener('abort', onExternalAbort)
@@ -173,26 +317,41 @@ class InlineCompletionService {
                 return ''
             }
 
-            const agentic = buildAgenticContext(view, context)
-            const messages = [
-                { role: 'system' as const, content: AGENTIC_SYSTEM_PROMPT },
-                { role: 'user' as const, content: buildAgenticPrompt(agentic) },
-            ]
+            const messages =
+                mode === 'agentic'
+                    ? [
+                          {
+                              role: 'system' as const,
+                              content: AGENTIC_SYSTEM_PROMPT,
+                          },
+                          {
+                              role: 'user' as const,
+                              content: buildAgenticPrompt(
+                                  buildAgenticContext(view, context)
+                              ),
+                          },
+                      ]
+                    : buildFastCompletionPrompt(context)
 
-            const maxTokens = Number(settings.inlineCompletionMaxTokens ?? 512)
+            const { maxTokens } = normalizeInlineCompletionOptions(settings)
             let accumulated = ''
             let lastYielded = ''
 
             for await (const chunk of streamAIResponse(provider, messages, {
-                temperature: 0.12,
+                temperature: mode === 'agentic' ? 0.12 : 0.04,
                 maxTokens,
                 signal: controller.signal,
             })) {
-                if (requestId !== this.activeRequestId) break
+                if (requestId !== this.activeRequestIds.get(requestKey)) break
                 if (controller.signal.aborted) break
 
                 accumulated += chunk
-                const sanitized = sanitizeCompletion(accumulated, context)
+                const sanitized =
+                    mode === 'fast'
+                        ? normalizeAutomaticCompletion(
+                              sanitizeCompletion(accumulated, context)
+                          )
+                        : sanitizeCompletion(accumulated, context)
                 if (sanitized && sanitized !== lastYielded) {
                     lastYielded = sanitized
                     yield sanitized
@@ -200,7 +359,12 @@ class InlineCompletionService {
                 if (shouldStopStreaming(sanitized, context)) break
             }
 
-            const final = sanitizeCompletion(accumulated, context)
+            const final =
+                mode === 'fast'
+                    ? normalizeAutomaticCompletion(
+                          sanitizeCompletion(accumulated, context)
+                      )
+                    : sanitizeCompletion(accumulated, context)
             if (final && final !== lastYielded) {
                 yield final
             }
@@ -214,7 +378,13 @@ class InlineCompletionService {
             }
             return final
         } catch (e: unknown) {
-            if (e instanceof Error && e.name === 'AbortError') return ''
+            if (e instanceof Error && e.name === 'AbortError') {
+                if (timedOut) {
+                    this.lastError =
+                        'AI completion timed out. Check your provider, model, or Ollama server.'
+                }
+                return ''
+            }
             this.lastError =
                 e instanceof Error ? e.message : 'Completion failed'
             if (process.env.NODE_ENV === 'development') {
@@ -222,9 +392,10 @@ class InlineCompletionService {
             }
             return ''
         } finally {
+            clearTimeout(timeout)
             externalSignal?.removeEventListener('abort', onExternalAbort)
-            if (this.abortController === controller) {
-                this.abortController = null
+            if (this.abortControllers.get(requestKey) === controller) {
+                this.abortControllers.delete(requestKey)
             }
         }
     }
@@ -238,3 +409,7 @@ function shouldStopStreaming(text: string, ctx: InlineCompletionContext): boolea
 }
 
 export const inlineCompletionService = new InlineCompletionService()
+
+export function getInlineCompletionLastError(): string | null {
+    return inlineCompletionService.lastError
+}

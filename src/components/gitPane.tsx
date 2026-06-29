@@ -11,10 +11,14 @@ import {
     faEllipsis,
     faChevronDown,
     faChevronRight,
+    faXmark,
+    faStar,
 } from '@fortawesome/pro-regular-svg-icons'
 import { useAppSelector } from '../app/hooks'
 import { getRootPath } from '../features/selectors'
 import { getIconElement } from './filetree'
+import { getSettings } from '../features/settings/settingsSelectors'
+import { draftCommitMessage } from '../features/ai/commitMessageDraft'
 
 interface GitStatusFile {
     status: string
@@ -23,14 +27,22 @@ interface GitStatusFile {
 
 export const GitPane = () => {
     const rootPath = useAppSelector(getRootPath)
+    const settings = useAppSelector(getSettings)
 
     // State
     const [loading, setLoading] = useState(false)
+    const [draftingMessage, setDraftingMessage] = useState(false)
     const [isRepo, setIsRepo] = useState(false)
     const [commitMessage, setCommitMessage] = useState('')
     const [currentBranch, setCurrentBranch] = useState('')
     const [stagedFiles, setStagedFiles] = useState<GitStatusFile[]>([])
     const [changesFiles, setChangesFiles] = useState<GitStatusFile[]>([])
+    const [error, setError] = useState('')
+    const [selectedDiff, setSelectedDiff] = useState<{
+        file: string
+        type: 'staged' | 'changes'
+        diff: string
+    } | null>(null)
 
     // UI State
     const [stagedOpen, setStagedOpen] = useState(true)
@@ -54,6 +66,7 @@ export const GitPane = () => {
     const fetchGitInfo = async () => {
         if (!rootPath) return
         setLoading(true)
+        setError('')
         try {
             // @ts-ignore
             const branchRes = await connector.gitCurrentBranch(rootPath)
@@ -96,6 +109,7 @@ export const GitPane = () => {
             }
         } catch (e) {
             console.error(e)
+            setError(e instanceof Error ? e.message : 'Failed to refresh git status.')
         } finally {
             setLoading(false)
         }
@@ -104,15 +118,46 @@ export const GitPane = () => {
     const handleCommit = async () => {
         if (!rootPath || !commitMessage) return
         setLoading(true)
+        setError('')
         try {
             // @ts-ignore
-            await connector.gitCommit(rootPath, commitMessage)
+            const result = await connector.gitCommit(rootPath, commitMessage)
+            if (!result?.success) {
+                throw new Error(result?.error || 'Commit failed.')
+            }
             setCommitMessage('')
             await fetchGitInfo()
         } catch (e) {
-            alert('Commit failed.')
+            setError(e instanceof Error ? e.message : 'Commit failed.')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleDraftCommitMessage = async () => {
+        if (!rootPath) return
+        setDraftingMessage(true)
+        setError('')
+        try {
+            // @ts-ignore
+            const result = await connector.gitDiff(rootPath, undefined, 'head')
+            if (!result?.success) {
+                throw new Error(result?.error || 'Unable to read git diff.')
+            }
+            if (!result.diff?.trim()) {
+                throw new Error('No changes found to summarize.')
+            }
+            const message = await draftCommitMessage(result.diff, settings)
+            if (!message) throw new Error('AI did not return a commit message.')
+            setCommitMessage(message)
+        } catch (e) {
+            setError(
+                e instanceof Error
+                    ? e.message
+                    : 'Failed to draft commit message.'
+            )
+        } finally {
+            setDraftingMessage(false)
         }
     }
 
@@ -120,21 +165,67 @@ export const GitPane = () => {
         if (!rootPath) return
         try {
             // @ts-ignore
-            await connector.gitAdd(rootPath, file)
+            const result = await connector.gitAdd(rootPath, file)
+            if (!result?.success) throw new Error(result?.error || 'Stage failed.')
             fetchGitInfo()
         } catch (e) {
-            console.error(e)
+            setError(e instanceof Error ? e.message : 'Stage failed.')
+        }
+    }
+
+    const handleUnstage = async (file: string) => {
+        if (!rootPath) return
+        try {
+            // @ts-ignore
+            const result = await connector.gitUnstage(rootPath, file)
+            if (!result?.success) throw new Error(result?.error || 'Unstage failed.')
+            fetchGitInfo()
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Unstage failed.')
+        }
+    }
+
+    const handleOpenDiff = async (
+        file: GitStatusFile,
+        type: 'staged' | 'changes'
+    ) => {
+        if (!rootPath) return
+        setError('')
+        setSelectedDiff({ file: file.file, type, diff: 'Loading diff...' })
+        try {
+            // @ts-ignore
+            const result = await connector.gitDiff(
+                rootPath,
+                file.file,
+                type === 'staged' ? 'staged' : 'unstaged'
+            )
+            if (!result?.success) throw new Error(result?.error || 'Diff failed.')
+            setSelectedDiff({
+                file: file.file,
+                type,
+                diff: result.diff || 'No diff available for this file.',
+            })
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Diff failed.')
         }
     }
 
     const handlePush = async () => {
         // @ts-ignore
-        if (rootPath) await connector.gitPush(rootPath)
+        if (rootPath) {
+            const result = await connector.gitPush(rootPath)
+            if (!result?.success) setError(result?.error || 'Push failed.')
+            await fetchGitInfo()
+        }
     }
 
     const handlePull = async () => {
         // @ts-ignore
-        if (rootPath) await connector.gitPull(rootPath)
+        if (rootPath) {
+            const result = await connector.gitPull(rootPath)
+            if (!result?.success) setError(result?.error || 'Pull failed.')
+            await fetchGitInfo()
+        }
     }
 
     useEffect(() => {
@@ -194,13 +285,12 @@ export const GitPane = () => {
             {/* Main Content */}
             <div className="flex-1 overflow-y-auto no-scrollbar">
                 {/* Commit Section */}
-                <div className="p-4 pb-2">
+                <div className="p-4 pb-3 border-b border-[var(--pane-border)]">
                     <div className="flex flex-col gap-2">
                         <textarea
-                            className="bg-[var(--input-bg)] border border-[var(--input-border)] focus:border-[var(--input-border-focus)] rounded-[2px] p-2 text-[13px] text-[var(--input-fg)] outline-none resize-none placeholder:text-[var(--input-placeholder)] min-h-[32px]"
-                            placeholder="Message (Cmd+Enter to commit)"
-                            rows={1}
-                            style={{ height: 'auto' }}
+                            className="bg-[var(--input-bg)] border border-[var(--input-border)] focus:border-[var(--input-border-focus)] rounded-[6px] p-2 text-[13px] text-[var(--input-fg)] outline-none resize-none placeholder:text-[var(--input-placeholder)] min-h-[56px]"
+                            placeholder="Commit message"
+                            rows={2}
                             value={commitMessage}
                             onChange={(e) => setCommitMessage(e.target.value)}
                             onKeyDown={(e) => {
@@ -212,18 +302,38 @@ export const GitPane = () => {
                                 }
                             }}
                         />
-                        <button
-                            className="bg-[var(--button-primary)] text-[var(--white)] text-[13px] font-medium py-[5px] rounded-[2px] hover:bg-[var(--button-primary-hover)] flex justify-center items-center gap-2"
-                            onClick={handleCommit}
-                            disabled={loading || !commitMessage}
-                        >
-                            <FontAwesomeIcon icon={faCheck} /> Commit
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                            <button
+                                className="rounded-[6px] border border-[var(--ui-border)] px-2 py-1.5 text-[12px] font-medium text-[var(--ui-fg)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                title="Draft a commit message from current changes"
+                                onClick={handleDraftCommitMessage}
+                                disabled={loading || draftingMessage}
+                            >
+                                <FontAwesomeIcon icon={faStar} />{' '}
+                                {draftingMessage ? 'Drafting...' : 'AI Draft'}
+                            </button>
+                            <button
+                                className="rounded-[6px] bg-[var(--button-primary)] px-2 py-1.5 text-[12px] font-medium text-[var(--white)] hover:bg-[var(--button-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed"
+                                onClick={handleCommit}
+                                disabled={loading || !commitMessage}
+                            >
+                                <FontAwesomeIcon icon={faCheck} /> Commit
+                            </button>
+                        </div>
+                        <p className="text-[10px] text-[var(--ui-fg-muted)]">
+                            AI Draft only fills the message box. It will not stage,
+                            commit, or push.
+                        </p>
+                        {error && (
+                            <div className="text-[11px] text-[var(--color-error)]">
+                                {error}
+                            </div>
+                        )}
                     </div>
                 </div>
 
                 {/* Branch Indicator */}
-                <div className="px-4 py-2 flex items-center justify-between text-[13px] border-b border-[var(--pane-border)] hover:bg-[var(--ui-hover)] cursor-pointer">
+                <div className="px-4 py-2 flex items-center justify-between text-[13px] border-b border-[var(--pane-border)] hover:bg-[var(--ui-hover)]">
                     <div className="flex items-center gap-2">
                         <FontAwesomeIcon
                             icon={faCodeBranch}
@@ -231,11 +341,19 @@ export const GitPane = () => {
                         />
                         <span>{currentBranch}</span>
                     </div>
-                    <div className="flex gap-3 text-[12px] opacity-0 group-hover:opacity-100 hover:opacity-100">
-                        <button title="Pull" onClick={handlePull}>
+                    <div className="flex gap-2 text-[12px]">
+                        <button
+                            title="Pull"
+                            onClick={handlePull}
+                            className="rounded px-1.5 py-1 text-[var(--ui-fg-muted)] hover:bg-[var(--ui-hover)] hover:text-[var(--ui-fg)]"
+                        >
                             <FontAwesomeIcon icon={faCloudArrowDown} />
                         </button>
-                        <button title="Push" onClick={handlePush}>
+                        <button
+                            title="Push"
+                            onClick={handlePush}
+                            className="rounded px-1.5 py-1 text-[var(--ui-fg-muted)] hover:bg-[var(--ui-hover)] hover:text-[var(--ui-fg)]"
+                        >
                             <FontAwesomeIcon icon={faCloudArrowUp} />
                         </button>
                     </div>
@@ -271,6 +389,12 @@ export const GitPane = () => {
                                         key={idx}
                                         file={file}
                                         type="staged"
+                                        onOpenDiff={() =>
+                                            handleOpenDiff(file, 'staged')
+                                        }
+                                        onUnstage={() =>
+                                            handleUnstage(file.file)
+                                        }
                                     />
                                 ))}
                             </div>
@@ -306,11 +430,36 @@ export const GitPane = () => {
                                     file={file}
                                     type="changes"
                                     onStage={() => handleStage(file.file)}
+                                    onOpenDiff={() =>
+                                        handleOpenDiff(file, 'changes')
+                                    }
                                 />
                             ))}
                         </div>
                     )}
                 </div>
+                {selectedDiff && (
+                    <div className="m-3 border border-[var(--ui-border)] rounded bg-[var(--ui-bg-elevated)] overflow-hidden">
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--ui-border)] text-[11px] text-[var(--ui-fg-muted)]">
+                            <span className="truncate">
+                                {selectedDiff.type === 'staged'
+                                    ? 'Staged'
+                                    : 'Changes'}{' '}
+                                diff: {selectedDiff.file}
+                            </span>
+                            <button
+                                onClick={() => setSelectedDiff(null)}
+                                className="hover:text-[var(--ui-fg)]"
+                                title="Close diff"
+                            >
+                                <FontAwesomeIcon icon={faXmark} />
+                            </button>
+                        </div>
+                        <pre className="max-h-80 overflow-auto whitespace-pre-wrap p-3 text-[11px] font-mono text-[var(--ui-fg)]">
+                            {selectedDiff.diff}
+                        </pre>
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -320,10 +469,14 @@ function FileItem({
     file,
     type,
     onStage,
+    onUnstage,
+    onOpenDiff,
 }: {
     file: GitStatusFile
     type: 'staged' | 'changes'
     onStage?: () => void
+    onUnstage?: () => void
+    onOpenDiff?: () => void
 }) {
     const icon = getIconElement(file.file)
     const fileName = file.file.split('/').pop() || file.file
@@ -337,7 +490,10 @@ function FileItem({
     if (file.status === 'U') statusColor = 'text-[var(--yellow)]' // Untracked/Modified proxy
 
     return (
-        <div className="flex items-center px-2 py-[3px] hover:bg-[var(--sidebar-hover)] cursor-pointer group select-none pl-6 text-[var(--sidebar-fg)]">
+        <div
+            className="flex items-center px-2 py-[3px] hover:bg-[var(--sidebar-hover)] cursor-pointer group select-none pl-6 text-[var(--sidebar-fg)]"
+            onClick={onOpenDiff}
+        >
             <div className="flex items-center gap-1.5 overflow-hidden flex-1">
                 <div className="shrink-0 w-4 text-center">{icon}</div>
                 <span
@@ -371,11 +527,15 @@ function FileItem({
                 )}
                 {type === 'staged' && (
                     <button
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onUnstage && onUnstage()
+                        }}
                         className="hover:text-[var(--foreground)] text-[var(--ui-fg-muted)]"
-                        title="Unstage Changes (Not Implemented)"
+                        title="Unstage Changes"
                     >
                         <FontAwesomeIcon icon={faMinus} />
-                    </button> // Placeholder since Unstage API missing
+                    </button>
                 )}
                 {/* Open File or Discard could go here */}
             </div>

@@ -9,8 +9,9 @@ import { store } from '../../app/store'
 import { FullState } from '../window/state'
 import { getCodeMirrorView } from '../codemirror/codemirrorSlice'
 import { getLanguageFromFilename } from '../extensions/utils'
-import { lintState, getDiagnostics, Diagnostic } from '../linter/lint'
+import { lintState, getDiagnostics } from '../linter/lint'
 import { InlineCompletionContext } from './inlineCompletion'
+import { getPathForFileId } from '../window/fileUtils'
 
 export interface AgenticCompletionContext extends InlineCompletionContext {
     lineNumber: number
@@ -85,7 +86,7 @@ function getRelatedOpenFileSnippets(
         if (snippets.length >= 2) break
         const tab = global.tabs[parseInt(tabIdStr, 10)]
         if (!tab || tab.isChat) continue
-        const path = global.files[tab.fileId]?.path
+        const path = getPathForFileId(global, tab.fileId)
         if (!path || path === activePath || seen.has(path)) continue
         if (getLanguageFromFilename(path) !== language) continue
 

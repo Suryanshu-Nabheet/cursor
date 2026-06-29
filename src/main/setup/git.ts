@@ -119,10 +119,20 @@ export default function setupGitIpcs() {
         }
     })
 
+    // Unstage files
+    ipcMain.handle('git_unstage', async (event, { rootPath, files }) => {
+        try {
+            const fileList = Array.isArray(files) ? files.join(' ') : files
+            await exec(`git reset -- ${fileList}`, { cwd: rootPath })
+            return { success: true }
+        } catch (error: any) {
+            return { success: false, error: error.message }
+        }
+    })
+
     // Commit changes
     ipcMain.handle('git_commit', async (event, { rootPath, message }) => {
         try {
-            await exec(`git add .`, { cwd: rootPath })
             await exec(`git commit -m "${message}"`, { cwd: rootPath })
             return { success: true }
         } catch (error: any) {
@@ -266,10 +276,16 @@ export default function setupGitIpcs() {
     )
 
     // Get diff
-    ipcMain.handle('git_diff', async (event, { rootPath, file }) => {
+    ipcMain.handle('git_diff', async (event, { rootPath, file, mode }) => {
         try {
+            const diffMode =
+                mode === 'staged'
+                    ? '--cached'
+                    : mode === 'head'
+                    ? 'HEAD'
+                    : ''
             const fileArg = file ? `-- "${file}"` : ''
-            const { stdout } = await exec(`git diff ${fileArg}`, {
+            const { stdout } = await exec(`git diff ${diffMode} ${fileArg}`, {
                 cwd: rootPath,
             })
             return { success: true, diff: stdout }

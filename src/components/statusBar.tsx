@@ -3,6 +3,10 @@ import { Codicon } from './codicon'
 import { useAppSelector } from '../app/hooks'
 import { getRootPath, getCurrentFileId } from '../features/selectors'
 import { getSettings } from '../features/settings/settingsSelectors'
+import {
+    getInlineCompletionLastError,
+    getInlineCompletionStatus,
+} from '../features/ai/inlineCompletion'
 
 export const StatusBar = () => {
     const rootPath = useAppSelector(getRootPath)
@@ -22,6 +26,7 @@ export const StatusBar = () => {
         lineEnding: 'LF',
         indentation: 'Spaces: 4',
     })
+    const [completionError, setCompletionError] = useState<string | null>(null)
     const settings = useAppSelector(getSettings)
 
     // Fetch Git information
@@ -153,7 +158,16 @@ export const StatusBar = () => {
         fetchDiagnostics()
     }, [activeFileId, state.fileDiagnostics])
 
+    useEffect(() => {
+        const updateCompletionError = () =>
+            setCompletionError(getInlineCompletionLastError())
+        updateCompletionError()
+        const interval = setInterval(updateCompletionError, 2000)
+        return () => clearInterval(interval)
+    }, [])
+
     const totalProblems = diagnosticsCount.errors + diagnosticsCount.warnings
+    const inlineCompletionStatus = getInlineCompletionStatus(settings)
 
     return (
         <div className="status-bar">
@@ -219,6 +233,23 @@ export const StatusBar = () => {
                 </div>
                 <div className="status-bar__item" title="Language Mode">
                     <span>{fileInfo.language}</span>
+                </div>
+                <div
+                    className="status-bar__item"
+                    title={
+                        completionError
+                            ? `Completion error: ${completionError}`
+                            : `Completion: ${inlineCompletionStatus.reason}`
+                    }
+                >
+                    <Codicon name="lightbulb" style={{ marginRight: '6px', fontSize: '12px' }} />
+                    <span>
+                        {inlineCompletionStatus.enabled
+                            ? completionError
+                                ? 'AI error'
+                                : `AI ${inlineCompletionStatus.provider}`
+                            : 'AI unavailable'}
+                    </span>
                 </div>
                 <div className="status-bar__item" title="Notifications">
                     <Codicon name="bell" style={{ fontSize: '12px' }} />

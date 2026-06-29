@@ -19,6 +19,8 @@ interface TerminalSession {
     terminalInstance: Terminal | null
     fitAddon: FitAddon | null
     terminalId: string | null
+    disposed: boolean
+    exited: boolean
     containerRef: React.RefObject<HTMLDivElement>
     dataHandler: ((_: any, payload: { id: string; data: string }) => void) | null
     exitHandler: ((_: any, payload: { id: string; exitCode: number }) => void) | null
@@ -33,6 +35,8 @@ function createSession(): Omit<TerminalSession, 'containerRef'> & { containerRef
         terminalInstance: null,
         fitAddon: null,
         terminalId: null,
+        disposed: false,
+        exited: false,
         containerRef: React.createRef<HTMLDivElement>(),
         dataHandler: null,
         exitHandler: null,
@@ -44,6 +48,7 @@ export const BottomTerminal: React.FC = () => {
     const isOpen = useAppSelector(
         (state: FullState) => state.global.terminalOpen
     )
+    const rootPath = useAppSelector((state: FullState) => state.global.rootPath)
     const settings = useAppSelector(ssel.getSettings)
     const availableThemes = useAppSelector(
         (state: any) => state.extensionsState.availableThemes
@@ -113,7 +118,7 @@ export const BottomTerminal: React.FC = () => {
                 connector.terminalResize(session.terminalId, dims.cols, dims.rows)
             }
         } catch (e) {
-            // Silent error handling
+            console.warn('[terminal] fit failed', e)
         }
     }, [isOpen])
 
@@ -148,11 +153,22 @@ export const BottomTerminal: React.FC = () => {
         session.fitAddon = fitAddon
 
         try {
-            const result: { id: string } = await connector.terminalCreate(80, 24)
+            const result: { id: string } = await connector.terminalCreate(
+                80,
+                24,
+                rootPath || undefined
+            )
+            if (session.disposed) {
+                await connector.terminalKill(result.id)
+                term.dispose()
+                return
+            }
             session.terminalId = result.id
 
             term.onData((data: string) => {
-                connector.terminalInto(result.id, data)
+                if (!session.exited && !session.disposed) {
+                    connector.terminalInto(result.id, data)
+                }
             })
 
             const dataHandler = (_: any, payload: { id: string; data: string }) => {
@@ -160,18 +176,18 @@ export const BottomTerminal: React.FC = () => {
                     try {
                         term.write(payload.data)
                     } catch (e) {
-                        // Silent error handling
+                        console.warn('[terminal] write failed', e)
                     }
                 }
             }
 
             const exitHandler = (_: any, payload: { id: string; exitCode: number }) => {
                 if (session.terminalId === payload.id) {
-                    // Mark session as exited - show message in terminal
+                    session.exited = true
                     try {
-                        term.writeln('\r\n\x1b[31mProcess exited. Close tab or press Enter to restart.\x1b[0m')
+                        term.writeln('\r\n\x1b[31mProcess exited. Close this tab or create a new terminal.\x1b[0m')
                     } catch (e) {
-                        // Silent
+                        console.warn('[terminal] exit message failed', e)
                     }
                 }
             }
@@ -186,12 +202,28 @@ export const BottomTerminal: React.FC = () => {
                 term.focus()
             }, 100)
         } catch (e) {
-            // Silent error handling
+            console.warn('[terminal] create failed', e)
+            term.writeln('\r\n\x1b[31mFailed to create terminal session.\x1b[0m')
         }
 
         // Update state with initialized session
-        setSessions(prev => prev.map(s => s.id === session.id ? { ...s, terminalInstance: term, fitAddon, terminalId: session.terminalId, dataHandler: session.dataHandler, exitHandler: session.exitHandler } : s))
-    }, [settings, getTerminalTheme, fitSession])
+        setSessions(prev =>
+            prev.map(s =>
+                s.id === session.id
+                    ? {
+                          ...s,
+                          terminalInstance: term,
+                          fitAddon,
+                          terminalId: session.terminalId,
+                          dataHandler: session.dataHandler,
+                          exitHandler: session.exitHandler,
+                          disposed: session.disposed,
+                          exited: session.exited,
+                      }
+                    : s
+            )
+        )
+    }, [settings, getTerminalTheme, fitSession, rootPath])
 
     // Initialize sessions when panel opens
     useEffect(() => {
@@ -301,16 +333,16 @@ export const BottomTerminal: React.FC = () => {
         return () => {
             sessionsRef.current.forEach(session => {
                 if (session.dataHandler) {
-                    try { connector.deregisterIncData(session.dataHandler) } catch (e) {}
+                    try { connector.deregisterIncData(session.dataHandler) } catch (e) { console.warn('[terminal] deregister data failed', e) }
                 }
                 if (session.exitHandler) {
-                    try { connector.deregisterTerminalExited(session.exitHandler) } catch (e) {}
+                    try { connector.deregisterTerminalExited(session.exitHandler) } catch (e) { console.warn('[terminal] deregister exit failed', e) }
                 }
                 if (session.terminalInstance) {
-                    try { session.terminalInstance.dispose() } catch (e) {}
+                    try { session.terminalInstance.dispose() } catch (e) { console.warn('[terminal] dispose failed', e) }
                 }
                 if (session.terminalId) {
-                    try { connector.terminalKill(session.terminalId) } catch (e) {}
+                    try { connector.terminalKill(session.terminalId) } catch (e) { console.warn('[terminal] kill failed', e) }
                 }
             })
             if (observerRef.current) {
@@ -334,18 +366,19 @@ export const BottomTerminal: React.FC = () => {
         setSessions(prev => {
             const sessionToClose = prev.find(s => s.id === sessionId)
             if (sessionToClose) {
+                sessionToClose.disposed = true
                 // Cleanup
                 if (sessionToClose.dataHandler) {
-                    try { connector.deregisterIncData(sessionToClose.dataHandler) } catch (e) {}
+                    try { connector.deregisterIncData(sessionToClose.dataHandler) } catch (e) { console.warn('[terminal] deregister data failed', e) }
                 }
                 if (sessionToClose.exitHandler) {
-                    try { connector.deregisterTerminalExited(sessionToClose.exitHandler) } catch (e) {}
+                    try { connector.deregisterTerminalExited(sessionToClose.exitHandler) } catch (e) { console.warn('[terminal] deregister exit failed', e) }
                 }
                 if (sessionToClose.terminalInstance) {
-                    try { sessionToClose.terminalInstance.dispose() } catch (e) {}
+                    try { sessionToClose.terminalInstance.dispose() } catch (e) { console.warn('[terminal] dispose failed', e) }
                 }
                 if (sessionToClose.terminalId) {
-                    try { connector.terminalKill(sessionToClose.terminalId) } catch (e) {}
+                    try { connector.terminalKill(sessionToClose.terminalId) } catch (e) { console.warn('[terminal] kill failed', e) }
                 }
             }
 
@@ -354,7 +387,7 @@ export const BottomTerminal: React.FC = () => {
             if (newSessions.length === 0) {
                 // Close the terminal panel if no sessions remain
                 dispatch(gs.closeTerminal())
-                return prev
+                return []
             }
 
             return newSessions

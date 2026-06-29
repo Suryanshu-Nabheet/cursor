@@ -293,21 +293,23 @@ export function App() {
                 {screenState === 'welcome' && <WelcomeScreen />}
                 {screenState === 'normal' && (
                     <>
-                        <div
-                            className={`app__lefttopwrapper${
-                                leftSideExpanded ? '' : ' hidden'
-                            }`}
-                            style={{ width: leftSideWidth + 'px' }}
-                        >
-                            <ActivityBar />
-                            <LeftSide />
-                        </div>
-                        <div
-                            className="leftDrag"
-                            onMouseDown={() => {
-                                setDragging(true)
-                            }}
-                        ></div>
+                        {leftSideExpanded && (
+                            <div
+                                className="app__lefttopwrapper"
+                                style={{ width: leftSideWidth + 'px' }}
+                            >
+                                <ActivityBar />
+                                <LeftSide />
+                            </div>
+                        )}
+                        {leftSideExpanded && (
+                            <div
+                                className="leftDrag"
+                                onMouseDown={() => {
+                                    setDragging(true)
+                                }}
+                            ></div>
+                        )}
                         <div className="app__righttopwrapper">
                             <div className="app__paneholderwrapper">
                                 <PaneHolder paneIds={paneSplits} depth={1} />

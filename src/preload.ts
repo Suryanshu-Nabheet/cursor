@@ -181,6 +181,7 @@ const electronConnector = {
         callback: (event: any, data: { id: string; data: string }) => void
     ) {
         ipcRenderer.on('terminal-incData', callback)
+        return () => ipcRenderer.removeListener('terminal-incData', callback)
     },
     deregisterIncData(
         callback: (event: any, data: { id: string; data: string }) => void
@@ -191,6 +192,7 @@ const electronConnector = {
         callback: (event: any, data: { id: string; exitCode: number }) => void
     ) {
         ipcRenderer.on('terminal-exited', callback)
+        return () => ipcRenderer.removeListener('terminal-exited', callback)
     },
     deregisterTerminalExited(
         callback: (event: any, data: { id: string; exitCode: number }) => void
@@ -327,6 +329,8 @@ const electronConnector = {
         rootPath: string
         badPaths: string[]
         caseSensitive: boolean
+        matchWholeWord?: boolean
+        useRegex?: boolean
     }) => ipcRenderer.invoke('searchRipGrep', payload),
     searchFilesName: (payload: { query: string; rootPath: string }) =>
         ipcRenderer.invoke('searchFilesName', payload),
@@ -408,6 +412,8 @@ const electronConnector = {
         ipcRenderer.invoke('git_delete_branch', { rootPath, branch }),
     gitAdd: (rootPath: string, files: string | string[]) =>
         ipcRenderer.invoke('git_add', { rootPath, files }),
+    gitUnstage: (rootPath: string, files: string | string[]) =>
+        ipcRenderer.invoke('git_unstage', { rootPath, files }),
     gitCommit: (rootPath: string, message: string) =>
         ipcRenderer.invoke('git_commit', { rootPath, message }),
     gitPush: (rootPath: string, remote?: string, branch?: string) =>
@@ -430,8 +436,8 @@ const electronConnector = {
         ipcRenderer.invoke('git_config_get', { rootPath, key }),
     gitConfigSet: (rootPath: string, key: string, value: string) =>
         ipcRenderer.invoke('git_config_set', { rootPath, key, value }),
-    gitDiff: (rootPath: string, file?: string) =>
-        ipcRenderer.invoke('git_diff', { rootPath, file }),
+    gitDiff: (rootPath: string, file?: string, mode?: 'unstaged' | 'staged' | 'head') =>
+        ipcRenderer.invoke('git_diff', { rootPath, file, mode }),
     gitStash: (rootPath: string, message?: string) =>
         ipcRenderer.invoke('git_stash', { rootPath, message }),
     gitStashPop: (rootPath: string) =>

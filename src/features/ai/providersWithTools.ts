@@ -21,6 +21,62 @@ export interface StreamChunk {
     error?: string
 }
 
+const PRIMARY_TOOL_ARGUMENT: Record<string, string> = {
+    read_file: 'path',
+    list_files: 'path',
+    open_file: 'path',
+    delete_file: 'path',
+    create_directory: 'path',
+    run_terminal_command: 'command',
+    search_code: 'query',
+}
+
+function parseToolArguments(
+    toolName: string,
+    rawArguments: string
+): { arguments: Record<string, any>; repaired: boolean } | null {
+    try {
+        const parsed = JSON.parse(rawArguments)
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            return { arguments: parsed, repaired: false }
+        }
+
+        const primaryKey = PRIMARY_TOOL_ARGUMENT[toolName]
+        if (primaryKey && typeof parsed === 'string' && parsed.trim()) {
+            return { arguments: { [primaryKey]: parsed.trim() }, repaired: true }
+        }
+    } catch {
+        // Fall through to repair common local-model argument fragments.
+    }
+
+    const primaryKey = PRIMARY_TOOL_ARGUMENT[toolName]
+    if (!primaryKey) return null
+
+    const normalized = rawArguments
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .replace(/[“”]/g, '"')
+        .replace(/[‘’]/g, "'")
+
+    const doubleQuoted = new RegExp(`"${primaryKey}"\\s*:\\s*"([^"\\n\\r]*)`).exec(normalized)
+    const singleQuoted = new RegExp(`'${primaryKey}'\\s*:\\s*'([^'\\n\\r]*)`).exec(normalized)
+    const unquoted = new RegExp(`["']?${primaryKey}["']?\\s*:\\s*([^,}\\n\\r]+)`).exec(normalized)
+    const value = doubleQuoted?.[1] ?? singleQuoted?.[1] ?? unquoted?.[1]
+
+    if (!value) return null
+
+    const cleaned = value
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/[}\]]+$/g, '')
+        .trim()
+
+    if (!cleaned) return null
+
+    return { arguments: { [primaryKey]: cleaned }, repaired: true }
+}
+
 /**
  * Format tools for the specific provider
  */
@@ -287,18 +343,21 @@ async function* streamOpenAIWithTools(
                     toolCall.arguments &&
                     !completedToolCalls.has(index)
                 ) {
-                    try {
-                        const parsedArgs = JSON.parse(toolCall.arguments)
+                    const parsed = parseToolArguments(
+                        toolCall.name,
+                        toolCall.arguments
+                    )
+                    if (parsed && !parsed.repaired) {
                         completedToolCalls.add(index)
                         yield {
                             type: 'tool_call',
                             toolCall: {
                                 id: callId,
                                 name: toolCall.name,
-                                arguments: parsedArgs,
+                                arguments: parsed.arguments,
                             },
                         }
-                    } catch {
+                    } else {
                         yield {
                             type: 'tool_call_delta',
                             toolCall: {
@@ -310,6 +369,51 @@ async function* streamOpenAIWithTools(
                         }
                     }
                 }
+            }
+        }
+
+        const emitIncompleteToolCalls = function* (): Generator<StreamChunk> {
+            for (const [index, toolCall] of toolCallsMap) {
+                if (completedToolCalls.has(index)) continue
+                const name = toolCall.name || 'unknown_tool'
+
+                if (!toolCall.name) {
+                    yield {
+                        type: 'error',
+                        error: `Model started a tool call but did not provide a tool name.`,
+                    }
+                    completedToolCalls.add(index)
+                    continue
+                }
+
+                if (!toolCall.arguments) {
+                    yield {
+                        type: 'error',
+                        error: `Tool call "${name}" was incomplete: missing arguments.`,
+                    }
+                    completedToolCalls.add(index)
+                    continue
+                }
+
+                const parsed = parseToolArguments(name, toolCall.arguments)
+                if (parsed) {
+                    yield {
+                        type: 'tool_call',
+                        toolCall: {
+                            id: toolCall.id || `call_${Date.now()}_${index}`,
+                            name,
+                            arguments: parsed.arguments,
+                        },
+                    }
+                    completedToolCalls.add(index)
+                    continue
+                }
+
+                yield {
+                    type: 'error',
+                    error: `Tool call "${name}" had invalid JSON arguments and could not be repaired.`,
+                }
+                completedToolCalls.add(index)
             }
         }
 
@@ -352,7 +456,12 @@ async function* streamOpenAIWithTools(
                                 yield chunk
                             }
                         }
-                    } catch (e) {}
+                    } catch {
+                        yield {
+                            type: 'error',
+                            error: 'Failed to parse provider stream chunk.',
+                        }
+                    }
                 }
             }
         }
@@ -385,21 +494,10 @@ async function* streamOpenAIWithTools(
             }
         }
 
-        // Yield any tool calls not already streamed incrementally
-        for (const [index, toolCall] of toolCallsMap) {
-            if (completedToolCalls.has(index)) continue
-            if (toolCall.name && toolCall.arguments) {
-                try {
-                    yield {
-                        type: 'tool_call',
-                        toolCall: {
-                            id: toolCall.id || `call_${Date.now()}_${index}`,
-                            name: toolCall.name,
-                            arguments: JSON.parse(toolCall.arguments),
-                        },
-                    }
-                } catch (e) {}
-            }
+        // Any remaining pending call is malformed/incomplete. Surface it instead of
+        // leaving the sidebar spinner stuck forever.
+        for (const chunk of emitIncompleteToolCalls()) {
+            yield chunk
         }
     } catch (error: any) {
         yield { type: 'error', error: `Network Error: ${error.message}` }
@@ -441,7 +539,7 @@ async function* streamClaudeWithTools(
                         // Handle both internal (tc.arguments obj) and API (tc.function.arguments str)
                         let args = tc.arguments
                         let name = tc.name
-                        let id = tc.id
+                        const id = tc.id
 
                         if (tc.function) {
                             name = tc.function.name
@@ -556,10 +654,20 @@ async function* streamClaudeWithTools(
                                         ),
                                     },
                                 }
-                            } catch (e) {}
+                            } catch {
+                                yield {
+                                    type: 'error',
+                                    error: `Claude tool call "${currentToolCall.name}" had invalid JSON arguments and was not executed.`,
+                                }
+                            }
                             currentToolCall = null
                         }
-                    } catch (e) {}
+                    } catch {
+                        yield {
+                            type: 'error',
+                            error: 'Failed to parse Claude stream chunk.',
+                        }
+                    }
                 }
             }
         }
@@ -608,7 +716,9 @@ async function* streamGeminiWithTools(
                             name = tc.function.name
                             try {
                                 args = JSON.parse(tc.function.arguments)
-                            } catch (e) {}
+                            } catch {
+                                args = {}
+                            }
                         }
                         parts.push({ functionCall: { name, args } })
                     })
@@ -697,7 +807,12 @@ async function* streamGeminiWithTools(
                         }
                     }
                 }
-            } catch (e) {}
+            } catch {
+                yield {
+                    type: 'error',
+                    error: 'Failed to parse Gemini stream chunk.',
+                }
+            }
         }
     } catch (e: any) {
         yield { type: 'error', error: `Gemini Network Error: ${e.message}` }

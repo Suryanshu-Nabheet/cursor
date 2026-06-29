@@ -249,7 +249,7 @@ export function ToolCallCard({
 
     const getToolStatusColor = () => {
         if (isPending) return 'text-ui-fg-muted'
-        if (needsApproval) return 'text-warn'
+        if (needsApproval) return 'text-ui-fg-muted'
         if (isExecuting) return 'text-accent'
         if (success === true) return 'text-success'
         if (success === false) return 'text-danger'
@@ -285,7 +285,7 @@ export function ToolCallCard({
                 <span className="flex items-center gap-1.5 text-[12px]">
                     <span className="text-ui-fg-muted">Run</span>
                     <span className="text-ui-fg font-medium font-mono text-[11px] opacity-80">
-                        {args.CommandLine?.slice(0, 50) || 'command'}
+                        {(args.command || args.CommandLine || 'command').slice(0, 50)}
                     </span>
                 </span>
             )
@@ -303,7 +303,9 @@ export function ToolCallCard({
     return (
         <div
             className={`my-0.5 rounded-md transition-all ${
-                needsApproval ? 'bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)]' : 'bg-transparent hover:bg-ui-hover'
+                needsApproval
+                    ? 'bg-transparent'
+                    : 'bg-transparent hover:bg-ui-hover'
             } ${success === true ? 'opacity-75' : ''}`}
         >
             <div
@@ -318,7 +320,7 @@ export function ToolCallCard({
 
                 <div className="ml-auto flex items-center gap-3">
                     {needsApproval && !isExecuting && (
-                        <span className="text-warn text-[10px] font-semibold border border-warn/30 px-1.5 py-0.5 rounded">Needs Approval</span>
+                        <span className="text-ui-fg-muted text-[10px] font-medium border border-ui-border bg-ui-bg-elevated px-1.5 py-0.5 rounded">Review</span>
                     )}
                     {isPending && !isExecuting && (
                         <div className="text-ui-fg-muted text-[10px]">
@@ -347,7 +349,7 @@ export function ToolCallCard({
             </div>
 
             {isExpanded && (
-                <div className="pt-1 pb-3 pl-10 pr-3 border-l-2 border-ui-border ml-[21px]">
+                <div className="pt-1 pb-3 pl-10 pr-3 border-l border-ui-border ml-[21px]">
                     <div className="mb-2">
                         <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">Arguments</div>
                         <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">
@@ -365,7 +367,7 @@ export function ToolCallCard({
                     {needsApproval && !isExecuting && success === undefined && (
                         <div className="flex gap-2 mt-2">
                             <button
-                                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded cursor-pointer transition-all bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-success hover:bg-success hover:text-white border-none"
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md cursor-pointer transition-all bg-transparent text-success hover:bg-ui-hover border border-ui-border"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onAccept?.()
@@ -374,7 +376,7 @@ export function ToolCallCard({
                                 <Codicon name="check" /> Approve
                             </button>
                             <button
-                                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded cursor-pointer transition-all border border-ui-border bg-transparent text-ui-fg-muted hover:bg-ui-hover border-none"
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md cursor-pointer transition-all border border-ui-border bg-transparent text-ui-fg-muted hover:bg-ui-hover hover:text-ui-fg"
                                 onClick={(e) => {
                                     e.stopPropagation()
                                     onReject?.()

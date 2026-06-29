@@ -15,6 +15,8 @@ const searchRipGrep = async (
         rootPath: string
         badPaths: string[]
         caseSensitive: boolean
+        matchWholeWord?: boolean
+        useRegex?: boolean
     }
 ) => {
     if (hasRg) {
@@ -30,6 +32,12 @@ const searchWithRg = async (arg: any) => {
         cmd.push('--case-sensitive')
     } else {
         cmd.push('-i')
+    }
+    if (!arg.useRegex) {
+        cmd.push('--fixed-strings')
+    }
+    if (arg.matchWholeWord) {
+        cmd.push('--word-regexp')
     }
 
     for (const badPath of arg.badPaths) {
@@ -83,6 +91,12 @@ const searchWithGrep = async (arg: any) => {
     const cmdArgs = ['-rnI'] // recursive, line-number, binary-files=without-match
     if (!arg.caseSensitive) {
         cmdArgs.push('-i')
+    }
+    if (!arg.useRegex) {
+        cmdArgs.push('-F')
+    }
+    if (arg.matchWholeWord) {
+        cmdArgs.push('-w')
     }
     // Exclude .git and node_modules
     cmdArgs.push(

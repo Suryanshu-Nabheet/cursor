@@ -4,6 +4,12 @@ import { ipcMain } from 'electron'
 import log from 'electron-log'
 import { randomUUID } from 'crypto'
 import fs from 'fs'
+import {
+    clampTerminalSize,
+    isAllowedShell,
+    isSafeTerminalUrl,
+    resolveTerminalCwd,
+} from './terminalUtils'
 
 const sessions = new Map<string, pty.IPty>()
 
@@ -51,18 +57,13 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
         requestRootPath?: string,
         requestedShell?: string
     ) => {
-        let cwd =
-            requestRootPath || rootPath || process.env.HOME || os.homedir()
+        const cwd = resolveTerminalCwd(requestRootPath, rootPath)
+        const size = clampTerminalSize(cols, rows)
 
-        // Validation for CWD existence
-        if (!fs.existsSync(cwd)) {
-            log.warn(
-                `Terminal CWD ${cwd} does not exist, falling back to home directory`
-            )
-            cwd = os.homedir()
-        }
-
-        let shellToUse = requestedShell
+        let shellToUse =
+            requestedShell && isAllowedShell(requestedShell, shells)
+                ? requestedShell
+                : undefined
 
         if (!shellToUse) {
             for (const shell of shells) {
@@ -99,8 +100,8 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
             log.info(`Spawning terminal ${id} with shell ${shellToUse}`)
             const ptyProcess = pty.spawn(shellToUse, [], {
                 name: 'xterm-256color',
-                cols: cols || 80,
-                rows: rows || 24,
+                cols: size.cols,
+                rows: size.rows,
                 cwd,
                 env: filteredEnv,
             })
@@ -153,7 +154,7 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
     ipcMain.removeHandler('terminal-into')
     ipcMain.handle('terminal-into', (_event, { id, data }) => {
         const term = sessions.get(id)
-        if (term) {
+        if (term && typeof data === 'string') {
             term.write(data)
         } else {
             log.warn(`terminal-into: session ${id} not found`)
@@ -165,7 +166,8 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
         const term = sessions.get(id)
         if (term) {
             try {
-                term.resize(cols, rows)
+                const size = clampTerminalSize(cols, rows)
+                term.resize(size.cols, size.rows)
             } catch (error) {
                 log.warn('Failed to resize terminal:', error)
             }
@@ -183,6 +185,11 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
 
     ipcMain.removeHandler('terminal-click-link')
     ipcMain.handle('terminal-click-link', (_event, url: string) => {
+        if (!isSafeTerminalUrl(url)) {
+            log.warn(`Blocked unsafe terminal URL: ${url}`)
+            return false
+        }
         require('electron').shell.openExternal(url)
+        return true
     })
 }

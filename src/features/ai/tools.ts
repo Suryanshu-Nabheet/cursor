@@ -47,6 +47,17 @@ export interface ToolResult {
     error?: string
 }
 
+interface CommandResult {
+    output: string
+    exitCode: number | null
+}
+
+const MAX_TOOL_OUTPUT_CHARS = 80_000
+const ANSI_ESCAPE_PATTERN = new RegExp(
+    `${String.fromCharCode(27)}\\[[0-9;?]*[ -/]*[@-~]`,
+    'g'
+)
+
 // ============================================
 // TOOL DEFINITIONS
 // ============================================
@@ -224,7 +235,8 @@ export async function executeToolCall(
     toolCall: ToolCall,
     rootPath: string,
     dispatch?: any,
-    actions?: any
+    actions?: any,
+    options?: { signal?: AbortSignal }
 ): Promise<ToolResult> {
     try {
         const result = await executeTool(
@@ -232,7 +244,8 @@ export async function executeToolCall(
             toolCall.arguments,
             rootPath,
             dispatch,
-            actions
+            actions,
+            options
         )
         return {
             id: toolCall.id,
@@ -255,8 +268,9 @@ export async function executeToolCall(
 async function runCommandCaptured(
     connector: any,
     command: string,
-    rootPath: string
-): Promise<string> {
+    rootPath: string,
+    signal?: AbortSignal
+): Promise<CommandResult> {
     // 1. Create a transient terminal
     const response = await connector.terminalCreate(
         80,
@@ -266,16 +280,33 @@ async function runCommandCaptured(
     )
     const termId = response.id
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         let output = ''
         let isResolved = false
+        let startupTimer: ReturnType<typeof setTimeout> | null = null
 
         const cleanup = () => {
+            if (startupTimer) clearTimeout(startupTimer)
             connector.deregisterIncData(onData)
             connector.deregisterTerminalExited(onExit)
+            signal?.removeEventListener('abort', onAbort)
             // Check if it's still alive?
             connector.terminalKill(termId).catch(() => {})
         }
+
+        const settleAbort = () => {
+            if (isResolved) return
+            isResolved = true
+            const cleanOutput = output.replace(ANSI_ESCAPE_PATTERN, '')
+            cleanup()
+            reject(
+                new Error(
+                    `Command aborted by user.\n${cleanOutput}`.trim()
+                )
+            )
+        }
+
+        const onAbort = () => settleAbort()
 
         const onData = (_event: any, data: { id: string; data: string }) => {
             if (data.id === termId) {
@@ -292,27 +323,36 @@ async function runCommandCaptured(
                 cleanup()
                 // Strip Ansi codes if possible, or just return raw
                 // eslint-disable-next-line no-control-regex
-                resolve(output.replace(/\x1b\[.*?m/g, ''))
+                const cleanOutput = output.replace(ANSI_ESCAPE_PATTERN, '')
+                const truncated =
+                    cleanOutput.length > MAX_TOOL_OUTPUT_CHARS
+                        ? `${cleanOutput.slice(-MAX_TOOL_OUTPUT_CHARS)}\n[Output truncated to last ${MAX_TOOL_OUTPUT_CHARS} characters]`
+                        : cleanOutput
+                resolve({
+                    output: `${truncated}\n[exit code: ${data.exitCode}]`,
+                    exitCode: data.exitCode,
+                })
             }
         }
 
+        if (signal?.aborted) {
+            settleAbort()
+            return
+        }
+        signal?.addEventListener('abort', onAbort, { once: true })
         connector.registerIncData(onData)
         connector.registerTerminalExited(onExit)
 
         // Wait slightly for init
-        setTimeout(() => {
+        startupTimer = setTimeout(() => {
             // Run command then exit to close the terminal and trigger onExit
-            connector.terminalInto(termId, `${command}; exit\n`)
-        }, 50)
-
-        // Timeout after 60s
-        setTimeout(() => {
-            if (!isResolved) {
+            connector.terminalInto(termId, `${command}; exit\n`).catch((error: any) => {
+                if (isResolved) return
                 isResolved = true
                 cleanup()
-                resolve(output + '\n[Timeout: Command timed out after 60s]')
-            }
-        }, 60000)
+                reject(error)
+            })
+        }, 50)
     })
 }
 
@@ -321,7 +361,8 @@ async function executeTool(
     args: Record<string, any>,
     rootPath: string,
     dispatch?: any,
-    actions?: any
+    actions?: any,
+    options?: { signal?: AbortSignal }
 ): Promise<string> {
     // @ts-ignore
     const connector = window.connector
@@ -430,9 +471,14 @@ async function executeTool(
             const output = await runCommandCaptured(
                 connector,
                 args.command,
-                rootPath
+                rootPath,
+                options?.signal
             )
-            return `Command: ${args.command}\n\nOutput:\n\`\`\`\n${output}\n\`\`\``
+            const formatted = `Command: ${args.command}\n\nOutput:\n\`\`\`\n${output.output}\n\`\`\``
+            if (output.exitCode !== 0) {
+                throw new Error(formatted)
+            }
+            return formatted
         }
 
         case 'search_code': {

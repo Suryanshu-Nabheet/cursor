@@ -12,6 +12,8 @@ import {
     extractInlineCompletionContext,
     inlineCompletionService,
     isInlineCompletionEnabled,
+    normalizeInlineCompletionOptions,
+    InlineCompletionMode,
 } from '../ai/inlineCompletion'
 import { bindViewFilePath } from '../ai/agenticCompletion'
 
@@ -139,29 +141,66 @@ const ghostTextField = StateField.define<GhostState>({
         }),
 })
 
-let activeFetchToken = 0
+let viewRequestCounter = 0
+const viewRequests = new WeakMap<EditorView, { token: number; key: string }>()
+
+function getViewRequestKey(view: EditorView) {
+    const existing = viewRequests.get(view)
+    if (existing) return existing.key
+    const key = `view-${++viewRequestCounter}`
+    viewRequests.set(view, { token: 0, key })
+    return key
+}
+
+function nextViewRequest(view: EditorView) {
+    const key = getViewRequestKey(view)
+    const current = viewRequests.get(view)?.token ?? 0
+    const token = current + 1
+    viewRequests.set(view, { key, token })
+    return { key, token }
+}
+
+function cancelViewRequest(view: EditorView) {
+    const current = viewRequests.get(view)
+    if (current) {
+        viewRequests.set(view, { ...current, token: current.token + 1 })
+        inlineCompletionService.cancel(current.key)
+    }
+}
 
 function safeDispatch(view: EditorView, spec: TransactionSpec) {
-    requestAnimationFrame(() => {
-        if (!view.dom.isConnected) return
-        try {
-            view.dispatch({
-                ...spec,
-                annotations: [
-                    ...(spec.annotations
-                        ? Array.isArray(spec.annotations)
-                            ? spec.annotations
-                            : [spec.annotations]
-                        : []),
-                    ghostInternalAnnotation.of(true),
-                ],
-            })
-        } catch (e) {
-            if (process.env.NODE_ENV === 'development') {
-                console.warn('[ghostText] dispatch failed', e)
-            }
+    if (!view.dom.isConnected) return
+    const selection = view.state.selection.main
+    const effects = Array.isArray(spec.effects)
+        ? spec.effects
+        : spec.effects
+        ? [spec.effects]
+        : []
+    const hasInvalidGhostPosition = effects.some((effect: any) => {
+        if (effect.is?.(setGhostTextEffect) || effect.is?.(setGhostLoadingEffect)) {
+            const pos = effect.value?.pos
+            return typeof pos === 'number' && pos > view.state.doc.length
         }
+        return false
     })
+    if (hasInvalidGhostPosition || selection.head > view.state.doc.length) return
+    try {
+        view.dispatch({
+            ...spec,
+            annotations: [
+                ...(spec.annotations
+                    ? Array.isArray(spec.annotations)
+                        ? spec.annotations
+                        : [spec.annotations]
+                    : []),
+                ghostInternalAnnotation.of(true),
+            ],
+        })
+    } catch (e) {
+        if (process.env.NODE_ENV === 'development') {
+            console.warn('[ghostText] dispatch failed', e)
+        }
+    }
 }
 
 function deferGhostDismiss(view: EditorView) {
@@ -179,9 +218,10 @@ async function runInlineCompletion(view: EditorView, force = false) {
     if (!isInlineCompletionEnabled(settings)) return
     if (view.state.readOnly) return
 
-    const ctx = extractInlineCompletionContext(view)
+    const mode: InlineCompletionMode = force ? 'agentic' : 'fast'
+    const ctx = extractInlineCompletionContext(view, undefined, mode)
     if (!ctx) {
-        inlineCompletionService.cancel()
+        cancelViewRequest(view)
         safeDispatch(view, { effects: dismissGhostTextEffect.of() })
         return
     }
@@ -194,8 +234,8 @@ async function runInlineCompletion(view: EditorView, force = false) {
         return
     }
 
-    const token = ++activeFetchToken
-    inlineCompletionService.cancel()
+    const { key, token } = nextViewRequest(view)
+    inlineCompletionService.cancel(key)
 
     const pos = view.state.selection.main.head
     safeDispatch(view, { effects: setGhostLoadingEffect.of({ pos }) })
@@ -203,8 +243,14 @@ async function runInlineCompletion(view: EditorView, force = false) {
     let lastDispatched = ''
 
     try {
-        for await (const partial of inlineCompletionService.stream(view, ctx)) {
-            if (token !== activeFetchToken) break
+        for await (const partial of inlineCompletionService.stream(
+            view,
+            ctx,
+            undefined,
+            mode,
+            key
+        )) {
+            if (token !== viewRequests.get(view)?.token) break
             if (view.state.selection.main.head !== pos) break
             if (!partial || partial === lastDispatched) continue
 
@@ -214,11 +260,11 @@ async function runInlineCompletion(view: EditorView, force = false) {
             })
         }
 
-        if (token === activeFetchToken && !lastDispatched) {
+        if (token === viewRequests.get(view)?.token && !lastDispatched) {
             safeDispatch(view, { effects: dismissGhostTextEffect.of() })
         }
     } catch {
-        if (token === activeFetchToken) {
+        if (token === viewRequests.get(view)?.token) {
             safeDispatch(view, { effects: dismissGhostTextEffect.of() })
         }
     }
@@ -261,30 +307,30 @@ const ghostTextTriggerPlugin = ViewPlugin.fromClass(
             )
 
             if (update.selectionSet && !update.docChanged) {
-                inlineCompletionService.cancel()
+                cancelViewRequest(update.view)
                 deferGhostDismiss(update.view)
                 return
             }
 
             if (!update.docChanged || fromGhostAccept) return
 
-            inlineCompletionService.cancel()
+            cancelViewRequest(update.view)
 
             const settings = store.getState().settingsState.settings
             if (!isInlineCompletionEnabled(settings)) return
 
-            const delay = Number(settings.inlineCompletionDelay ?? 350)
-            scheduleCompletion(update.view, delay)
+            const { delayMs } = normalizeInlineCompletionOptions(settings)
+            scheduleCompletion(update.view, delayMs)
         }
 
         destroy() {
-            inlineCompletionService.cancel()
+            // Individual view requests are cancelled by doc/selection changes and unmount cleanup.
         }
     }
 )
 
 export function triggerInlineCompletion(view: EditorView) {
-    inlineCompletionService.cancel()
+    cancelViewRequest(view)
     safeDispatch(view, { effects: dismissGhostTextEffect.of() })
     void runInlineCompletion(view, true)
 }
@@ -301,7 +347,7 @@ const ghostTextKeymap = keymap.of([
                 selection: { anchor: ghost.pos + ghost.text.length },
                 userEvent: 'input.complete',
             })
-            inlineCompletionService.cancel()
+            cancelViewRequest(view)
             return true
         },
     },
@@ -310,7 +356,7 @@ const ghostTextKeymap = keymap.of([
         run: view => {
             const ghost = view.state.field(ghostTextField, false)
             if (!ghost || ghost.kind === 'idle') return false
-            inlineCompletionService.cancel()
+            cancelViewRequest(view)
             view.dispatch({ effects: dismissGhostTextEffect.of() })
             return true
         },

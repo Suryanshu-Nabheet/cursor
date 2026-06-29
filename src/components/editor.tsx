@@ -269,6 +269,7 @@ export default function Editor({ tabId }: { tabId: number }) {
                     ref={editorRef}
                     customDispatch={customDispatch}
                     autoFocus={isPaneActive && isRenaming == null}
+                    basicSetup={{ autocompletion: false }}
                     className="window__editor"
                     height="100%"
                     onCreateEditor={(view: EditorView, _state: EditorState) => {
