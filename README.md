@@ -84,7 +84,6 @@ AI providers: Ollama (default), OpenAI, Claude, Gemini, OpenRouter — configure
 | `.babelrc` | Babel preset for JSX/legacy JS in webpack |
 | `.prettierrc` / `.prettierignore` | Code formatting |
 | `jest.config.js` / `jest.ts-transformer.js` | Unit tests under `tests/` |
-| `.npmrc` | Font Awesome Pro registry (token via env) |
 
 ---
 
