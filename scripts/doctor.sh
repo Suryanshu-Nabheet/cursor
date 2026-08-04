@@ -103,13 +103,6 @@ if command -v curl >/dev/null 2>&1; then
     fi
 fi
 
-# Font Awesome token (Pro icons)
-if [ -n "${FONTAWESOME_NPM_AUTH_TOKEN:-}" ]; then
-    ok "FONTAWESOME_NPM_AUTH_TOKEN is set"
-else
-    info "FONTAWESOME_NPM_AUTH_TOKEN unset (only needed if installing Font Awesome Pro packages)"
-fi
-
 echo ""
 if [ "$FAILURES" -gt 0 ]; then
     fail "$FAILURES check(s) failed"

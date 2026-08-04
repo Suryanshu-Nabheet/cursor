@@ -39,12 +39,6 @@ foreach ($f in @("assets\icon\icon.png", "assets\icon\icon.ico")) {
 if (-not (Test-Path "lsp")) { New-Item -ItemType Directory -Path "lsp" | Out-Null }
 Write-Ok "lsp/ directory ready"
 
-if ($env:FONTAWESOME_NPM_AUTH_TOKEN) {
-    Write-Ok "FONTAWESOME_NPM_AUTH_TOKEN is set"
-} else {
-    Write-Info "FONTAWESOME_NPM_AUTH_TOKEN unset (only needed for Font Awesome Pro)"
-}
-
 Write-Host ""
 if ($failures -gt 0) {
     Write-Fail "$failures check(s) failed"
