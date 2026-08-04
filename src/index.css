@@ -176,10 +176,10 @@ body {
 }
 
 .sidebar2__icon {
-    width: 26px;
-    height: 26px;
-    min-width: 26px;
-    min-height: 26px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
     margin: 2px;
     padding: 0;
     display: inline-flex;
@@ -194,9 +194,9 @@ body {
 }
 
 .sidebar2__icon .codicon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+    font-size: 17px;
+    width: 17px;
+    height: 17px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1070,7 +1070,7 @@ body {
 .titlebar {
     position: relative;
     width: 100%;
-    height: 38px;
+    height: 42px;
     background-color: var(--title-bar-background);
     color: var(--text);
     border-bottom: 1px solid var(--pane-border);
@@ -1121,8 +1121,8 @@ body {
 }
 
 .titlebar__right_button {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1991,103 +1991,427 @@ textarea:focus {
     border-radius: 15px;
 }
 
-.quick-open-wrapper {
-    position: absolute;
-    top: 5px; /* Floating from top */
+/* ═══════════════════════════════════════════════════════════════════
+   QUICK OPEN — VSCode-quality command palette & file search
+   All classes use qo-* prefix for isolation
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Backdrop overlay */
+.qo-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: var(--shadow-overlay-md);
+    animation: qoBackdropIn 0.12s ease-out;
+}
+
+@keyframes qoBackdropIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* Wrapper — positions the panel */
+.qo-wrapper {
+    position: fixed;
+    top: 8%;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 10000;
-    width: 600px;
-    max-width: 90vw;
+    z-index: 9999;
+    width: 680px;
+    max-width: 92vw;
     font-family: var(--font-sans);
-    animation: quickOpenFadeIn 0.1s ease-out;
+    display: flex;
+    flex-direction: column;
+    animation: qoPanelIn 0.14s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes quickOpenFadeIn {
-    from { opacity: 0; transform: translate(-50%, -10px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
+@keyframes qoPanelIn {
+    from { opacity: 0; transform: translateX(-50%) scale(0.97) translateY(-8px); }
+    to   { opacity: 1; transform: translateX(-50%) scale(1)   translateY(0);    }
 }
 
-.quick-open-container {
+/* Main container card */
+.qo-container {
     background-color: var(--ui-bg-elevated);
     border: 1px solid var(--ui-border);
-    border-radius: 6px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    border-radius: var(--radius-lg);
+    box-shadow:
+        0 4px 12px var(--shadow-overlay-md),
+        0 16px 48px var(--shadow-overlay-lg);
     overflow: hidden;
-    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
 }
 
-.quick-open-input {
-    width: 100%;
-    background-color: var(--ui-bg-elevated);
-    border: none;
+/* ── Mode Header ─────────────────────────────────────────────────── */
+
+.qo-mode-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ui-fg-muted);
     border-bottom: 1px solid var(--ui-border);
-    color: var(--ui-fg);
-    padding: 12px 14px;
+    border-left: 2px solid var(--accent);
+    background-color: var(--ui-bg-elevated);
+    user-select: none;
+}
+
+/* Both modes share the same minimal header style */
+.qo-mode-command,
+.qo-mode-file {
+    /* no overrides — inherits qo-mode-header */
+}
+
+.qo-mode-icon {
     font-size: 13px;
-    outline: none !important;
-    font-family: var(--font-sans);
+    opacity: 0.8;
 }
 
-.quick-open-input::placeholder {
-    color: var(--input-placeholder);
-    opacity: 0.6;
+.qo-mode-label {
+    flex: 1;
 }
 
-.quick-open-input:focus {
-    background-color: var(--input-bg);
+.qo-mode-shortcut {
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--ui-fg-muted);
+    letter-spacing: 0;
+    text-transform: none;
+    opacity: 0.7;
+}
+
+/* ── Input Row ──────────────────────────────────────────────────── */
+
+.qo-input-row {
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    background-color: var(--ui-bg-elevated);
+    border-bottom: 1px solid var(--ui-border);
+    transition: border-color var(--transition-fast);
+}
+
+.qo-input-row:focus-within {
     border-bottom-color: var(--accent);
 }
 
-.quick-open-list {
-    max-height: 400px;
-    overflow-y: auto;
-    background-color: var(--ui-bg-elevated);
-    padding: 4px 0;
+/* The > prefix for command palette */
+.qo-prefix-marker {
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 600;
+    margin-right: 6px;
+    opacity: 0.8;
+    user-select: none;
+    flex-shrink: 0;
 }
 
-.quick-open-item {
+/* Search icon for file search */
+.qo-search-icon {
+    color: var(--ui-fg-muted);
     display: flex;
     align-items: center;
-    padding: 6px 12px;
-    cursor: pointer;
-    color: var(--ui-fg-muted);
-    transition: none;
-    gap: 8px;
-    font-size: 13px;
+    margin-right: 6px;
+    opacity: 0.6;
+    flex-shrink: 0;
 }
 
-.quick-open-item:hover,
-.quick-open-item.selected {
+.qo-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--ui-fg);
+    padding: 14px 0;
+    font-size: 14px;
+    font-family: var(--font-sans);
+    outline: none;
+    min-width: 0;
+}
+
+.qo-input::placeholder {
+    color: var(--input-placeholder);
+    opacity: 0.5;
+}
+
+.qo-clear-btn {
+    background: transparent;
+    border: none;
+    color: var(--ui-fg-muted);
+    cursor: pointer;
+    padding: 3px 5px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    opacity: 0.45;
+    line-height: 1;
+    transition: opacity var(--transition-fast), background var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.qo-clear-btn:hover {
+    opacity: 0.8;
+    background: var(--ui-hover);
+}
+
+/* ── Results List ───────────────────────────────────────────────── */
+
+.qo-list {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 4px 0;
+    scroll-behavior: smooth;
+}
+
+.qo-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.qo-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.qo-list::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.qo-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* ── Section Headers ───────────────────────────────────────────── */
+
+.qo-section-header {
+    padding: 6px 14px 3px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--ui-fg-muted);
+    opacity: 0.55;
+    user-select: none;
+    margin-top: 2px;
+}
+
+.qo-group + .qo-group .qo-section-header {
+    border-top: 1px solid var(--ui-border);
+    margin-top: 3px;
+    padding-top: 7px;
+}
+
+/* ── Result Items ───────────────────────────────────────────────── */
+
+.qo-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px 7px 12px;
+    cursor: pointer;
+    color: var(--ui-fg-muted);
+    font-size: 13px;
+    border-left: 2px solid transparent;
+    transition:
+        background-color 0.07s ease,
+        color 0.07s ease;
+    user-select: none;
+}
+
+.qo-item:hover {
     background-color: var(--ui-hover);
     color: var(--ui-fg);
 }
 
-.quick-open-item.selected {
-    background-color: var(--ui-active);
+.qo-item--selected {
+    background-color: var(--ui-hover) !important;
+    color: var(--ui-fg) !important;
+    border-left-color: var(--accent) !important;
 }
 
-.quick-open-item .file__icon {
-    width: 20px;
+.qo-item--selected .qo-item-name {
+    color: var(--ui-fg);
+}
+
+.qo-item--selected .qo-item-desc,
+.qo-item--selected .qo-item-path {
+    color: var(--ui-fg-muted);
+}
+
+.qo-item--disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* AI items use the same style as normal items */
+.qo-item--ai .qo-item-icon {
+    color: var(--ui-fg-muted);
+}
+
+/* ── Item sub-elements ──────────────────────────────────────────── */
+
+.qo-item-icon {
+    font-size: 13px;
+    width: 18px;
     text-align: center;
-    margin-right: 10px;
+    flex-shrink: 0;
+    opacity: 0.75;
+}
+
+.qo-item-file-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    flex-shrink: 0;
     opacity: 0.8;
 }
 
-.quick-open-item .file__name {
-    flex-grow: 1;
+.qo-item-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ui-fg);
     font-weight: 500;
+    font-size: 13px;
 }
 
-.quick-open-item .file__path {
+.qo-item-desc {
     color: var(--ui-fg-muted);
-    font-size: 0.85em;
-    margin-left: 10px;
-    max-width: 40%;
+    font-size: 11.5px;
+    opacity: 0.7;
+    flex-shrink: 0;
+    max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.qo-item-path {
+    color: var(--ui-fg-muted);
+    font-size: 11.5px;
+    opacity: 0.55;
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+}
+
+.qo-item-shortcuts {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+/* ── kbd / shortcut badges ──────────────────────────────────────── */
+
+.qo-kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--ui-fg-muted);
+    line-height: 1.5;
+    min-width: 20px;
+    text-align: center;
+    white-space: nowrap;
+    opacity: 0.75;
+}
+
+.qo-item--selected .qo-kbd {
+    border-color: var(--accent);
+    color: var(--accent);
+    opacity: 0.8;
+}
+
+/* ── Highlight match marks ──────────────────────────────────────── */
+
+.qo-highlight {
+    background: transparent;
+    color: var(--accent);
+    font-weight: 700;
+    padding: 0;
+}
+
+/* ── Empty state ───────────────────────────────────────────────── */
+
+.qo-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 32px 16px;
+    color: var(--ui-fg-muted);
+    font-size: 13px;
+    opacity: 0.6;
+    user-select: none;
+}
+
+.qo-empty-icon {
+    font-size: 24px;
+    opacity: 0.5;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+
+.qo-footer {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 6px 14px;
+    border-top: 1px solid var(--ui-border);
+    background-color: var(--ui-bg-elevated);
+    user-select: none;
+}
+
+.qo-footer-hint {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--ui-fg-muted);
+    opacity: 0.55;
+}
+
+.qo-footer-hint kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 0 3px;
+    font-size: 9px;
+    font-family: var(--font-mono);
+    color: var(--ui-fg-muted);
+    min-width: 16px;
+    text-align: center;
+    line-height: 1.7;
+}
+
+/* ── Legacy search bar (panel search, not quick-open) ───────────── */
 
 .search-bar {
     padding-bottom: 10px;
@@ -2109,26 +2433,6 @@ textarea:focus {
 
 .search-textarea:focus {
     border-color: var(--any-tag);
-}
-
-/* Scrollbar refinement for quick open */
-.quick-open-list::-webkit-scrollbar {
-    width: 8px;
-}
-
-.quick-open-list::-webkit-scrollbar-thumb {
-    background-color: var(--scrollbar-thumb);
-    border: var(--scrollbar-thumb-border);
-    border-radius: 4px;
-}
-
-.quick-open-list::-webkit-scrollbar-thumb:hover {
-    background-color: var(--scrollbar-thumb-hover);
-}
-
-.quick-open-list::-webkit-scrollbar-track {
-    background-color: var(--scrollbar-track-bg);
-    border: var(--scrollbar-track-border);
 }
 
 .window__editorcontainer::-webkit-scrollbar {
@@ -3755,24 +4059,10 @@ cm-diff-cancel>div {
     justify-content: center;
 }
 
+/* Legacy ai_command_result styles are replaced by qo-item--ai — kept for safety */
 .ai_command_result .file__name {
     color: var(--ui-fg);
     font-weight: 600;
-}
-
-.ai_command_result.selected {
-    background-color: rgba(86, 156, 214, 0.15);
-    border-left-color: var(--accent);
-}
-
-.ai_command_result.selected .file__name {
-    color: var(--ui-fg);
-}
-
-.quick-open-item.selected .shortcut__block {
-    background-color: rgba(86, 156, 214, 0.3);
-    color: var(--ui-fg);
-    border: 1px solid rgba(86, 156, 214, 0.5);
 }
 
 .command_line>div {

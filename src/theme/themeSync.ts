@@ -304,12 +304,12 @@ export function applyThemeToRoot(theme: ThemeColors) {
     // ═══════════════════════════════════════════════════════════════════════
     // ACCENT COLORS - Cursor IDE / VS Code Blue
     // ═══════════════════════════════════════════════════════════════════════
-    root.style.setProperty('--accent', '#007acc')
-    root.style.setProperty('--accent-rgb', '0, 122, 204') // For rgba() usage
+    root.style.setProperty('--accent', theme.buttonBackground || '#007acc')
+    root.style.setProperty('--accent-rgb', '0, 120, 212') // For rgba() usage
     root.style.setProperty('--accent-hover', '#1ba1e2')
-    root.style.setProperty('--blue', '#007acc')
+    root.style.setProperty('--blue', theme.buttonBackground || '#007acc')
     root.style.setProperty('--blue-light', '#1ba1e2')
-    root.style.setProperty('--sidebar-selected-accent', '#007acc')
+    root.style.setProperty('--sidebar-selected-accent', theme.buttonBackground || '#007acc')
 
     // Semantic colors - these remain stable as they reference standard meanings
     root.style.setProperty('--color-success', '#4ade80')
@@ -351,9 +351,9 @@ export function applyThemeToRoot(theme: ThemeColors) {
     root.style.setProperty('--activity-bar-gap', '2px')
     root.style.setProperty('--activity-bar-padding-x', '6px')
     root.style.setProperty('--activity-bar-more-gap', '10px')
-    root.style.setProperty('--activity-bar-height', '35px')
-    root.style.setProperty('--activity-bar-item-size', '26px')
-    root.style.setProperty('--activity-bar-icon-size', '16px')
+    root.style.setProperty('--activity-bar-height', '40px')
+    root.style.setProperty('--activity-bar-item-size', '28px')
+    root.style.setProperty('--activity-bar-icon-size', '17px')
 
     // ═══════════════════════════════════════════════════════════════════════
     // TABS - Cursor IDE / VS Code

@@ -76,7 +76,7 @@ export function App() {
                 }
 
                 // Cmd+Shift+P - Command Palette
-                if (e.key === 'p' && e.shiftKey) {
+                if (e.key.toLowerCase() === 'p' && e.shiftKey) {
                     if (!commandPaletteOpen) {
                         e.preventDefault()
                         e.stopPropagation()
@@ -126,7 +126,7 @@ export function App() {
                 }
 
                 // Cmd+Shift+E — Explorer
-                if (e.key === 'e' && e.shiftKey) {
+                if (e.key.toLowerCase() === 'e' && e.shiftKey) {
                     e.preventDefault()
                     e.stopPropagation()
                     dispatch(ts.openFileTree())
@@ -135,7 +135,7 @@ export function App() {
                 }
 
                 // Cmd+Shift+F — Search panel
-                if (e.key === 'f' && e.shiftKey) {
+                if (e.key.toLowerCase() === 'f' && e.shiftKey) {
                     e.preventDefault()
                     e.stopPropagation()
                     dispatch(ts.openSearch())
@@ -144,7 +144,7 @@ export function App() {
                 }
 
                 // Cmd+Shift+X — Extensions
-                if (e.key === 'x' && e.shiftKey) {
+                if (e.key.toLowerCase() === 'x' && e.shiftKey) {
                     e.preventDefault()
                     e.stopPropagation()
                     dispatch(ts.openExtensions())
@@ -153,7 +153,7 @@ export function App() {
                 }
 
                 // Cmd+Shift+G — Source Control (Windows/Linux; Mac also via Ctrl below)
-                if (e.key === 'g' && e.shiftKey) {
+                if (e.key.toLowerCase() === 'g' && e.shiftKey) {
                     e.preventDefault()
                     e.stopPropagation()
                     dispatch(ts.openGit())
