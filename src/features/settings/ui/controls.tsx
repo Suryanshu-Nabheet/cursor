@@ -1,7 +1,7 @@
 import cx from 'classnames'
 import { Switch, Listbox } from '@headlessui/react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCheck, faChevronDown } from '@fortawesome/pro-regular-svg-icons'
+import { faCheck, faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import type { ReactNode } from 'react'
 import { Codicon } from '../../../components/codicon'
 

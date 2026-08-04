@@ -3,8 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
     faXmark,
     faTableColumns,
-    faTableRows,
-} from '@fortawesome/pro-regular-svg-icons'
+    faTableList as faTableRows,
+} from '@fortawesome/free-solid-svg-icons'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { getFile, getTab } from '../features/selectors'
 import { setDraggingTab, stopDraggingTab } from '../features/globalSlice'

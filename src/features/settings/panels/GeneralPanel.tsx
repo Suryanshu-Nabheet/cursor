@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faMinus, faPlus } from '@fortawesome/pro-regular-svg-icons'
+import { faMinus, faPlus } from '@fortawesome/free-solid-svg-icons'
 import type { AppDispatch } from '../../../app/store'
 import type { Settings } from '../../window/state'
 import { changeSettings } from '../settingsSlice'

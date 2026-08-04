@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import cx from 'classnames'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faEye, faEyeSlash } from '@fortawesome/pro-regular-svg-icons'
+import { faEye, faEyeSlash } from '@fortawesome/free-solid-svg-icons'
 import { useAppDispatch, useAppSelector } from '../../../app/hooks'
 import type { AIProvider } from '../../ai/providers'
 import { getInlineCompletionStatus } from '../../ai/inlineCompletion'

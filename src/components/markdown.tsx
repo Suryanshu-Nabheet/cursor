@@ -9,7 +9,6 @@ import React, {
 import cx from 'classnames'
 import { ActionTips, Tip } from '../app/constants'
 import { CodeSymbolType, Message } from '../features/window/state'
-import { faArrowUp } from '@fortawesome/pro-regular-svg-icons'
 import { getIconElement } from '../components/filetree'
 
 import {
@@ -37,7 +36,7 @@ import { getCursorTheme } from '../theme'
 import { getSettings } from '../features/settings/settingsSelectors'
 import { vim } from './codemirror-vim'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCopy } from '@fortawesome/sharp-solid-svg-icons'
+import { faArrowUp, faCopy } from '@fortawesome/free-solid-svg-icons'
 
 import ReactTextareaAutocomplete from '@webscopeio/react-textarea-autocomplete'
 
