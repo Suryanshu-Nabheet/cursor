@@ -12,7 +12,7 @@ import {
     faChevronRight,
     faXmark,
     faStar,
-} from '@fortawesome/pro-regular-svg-icons'
+} from '@fortawesome/free-solid-svg-icons'
 import { useAppSelector } from '../app/hooks'
 import { getRootPath } from '../features/selectors'
 import { getIconElement } from './filetree'

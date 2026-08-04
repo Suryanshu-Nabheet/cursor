@@ -9,7 +9,7 @@ import {
     faFolderOpen,
     faCodeBranch,
     faTerminal,
-} from '@fortawesome/pro-regular-svg-icons'
+} from '@fortawesome/free-solid-svg-icons'
 import { getNameFromPath } from '../features/window/fileUtils'
 
 export function WelcomeScreen() {

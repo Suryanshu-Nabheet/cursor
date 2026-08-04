@@ -2,9 +2,9 @@ import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { closeError } from '../features/globalSlice'
 import { getError, getShowErrors } from '../features/selectors'
 import {
-    faClose,
+    faXmark as faClose,
     faTriangleExclamation,
-} from '@fortawesome/pro-regular-svg-icons'
+} from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import Modal from 'react-modal'
 

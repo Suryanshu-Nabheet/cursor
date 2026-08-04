@@ -4,14 +4,14 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
     faChevronDown,
     faChevronRight,
-    faFontCase,
+    faFont as faFontCase,
     faItalic,
     faAsterisk,
     faAngleRight,
     faAngleDown,
     faEllipsis,
-    faTimes,
-} from '@fortawesome/pro-regular-svg-icons'
+    faXmark as faTimes,
+} from '@fortawesome/free-solid-svg-icons'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { getLeftTab, getLeftTabActive } from '../features/tools/toolSelectors'
 import { leftTabInactive } from '../features/tools/toolSlice'
