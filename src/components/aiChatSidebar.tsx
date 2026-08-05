@@ -311,6 +311,16 @@ function ToolCallsGroup({
     )
 }
 
+function stripSpecialTags(text: string): string {
+    if (!text) return ''
+    return text
+        .replace(/<plan>[\s\S]*?<\/plan>/gi, '')
+        .replace(/<plan>[\s\S]*/gi, '')
+        .replace(/<todos>[\s\S]*?<\/todos>/gi, '')
+        .replace(/<todos>[\s\S]*/gi, '')
+        .trim()
+}
+
 // ─── Message Bubble ───────────────────────────────────────────────────────────
 function MessageBubble({
     message,
@@ -347,7 +357,7 @@ function MessageBubble({
         .join('\n\n')
 
     const handleCopy = async () => {
-        await navigator.clipboard.writeText(fullText || message.content)
+        await navigator.clipboard.writeText(stripSpecialTags(fullText || message.content))
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
     }
@@ -358,18 +368,33 @@ function MessageBubble({
 
 function FormattedUserText({ text }: { text: string }) {
     if (!text) return null
-    const parts = text.split(/(@[a-zA-Z0-9_\-\.\/:]+)/g)
+    const parts = text.split(/(@[a-zA-Z0-9_\-\.\/:]+|[a-zA-Z0-9_\-\. ]+\.(?:png|jpg|jpeg|gif|svg|webp|pdf))/gi)
     return (
         <span>
             {parts.map((part, idx) => {
                 if (part.startsWith('@') && part.length > 1) {
+                    const isGit = part.includes('git')
+                    const isCodebase = part.includes('codebase') || part.includes('workspace')
+                    const iconName = isGit ? 'git-commit' : isCodebase ? 'symbol-structure' : 'file'
                     return (
                         <span
                             key={idx}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-accent font-mono text-[12px] font-semibold border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shrink-0"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-0.5 rounded-md bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-accent font-mono text-[12px] font-medium border border-[color-mix(in_srgb,var(--accent)_25%,transparent)] shrink-0"
                         >
-                            <Codicon name="tag" style={{ fontSize: 10 }} />
+                            <Codicon name={iconName} style={{ fontSize: 10 }} />
                             {part}
+                        </span>
+                    )
+                }
+                const isImageFile = /\.(png|jpg|jpeg|gif|svg|webp)$/i.test(part.trim())
+                if (isImageFile && part.trim().length > 3) {
+                    return (
+                        <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 mx-0.5 rounded-md bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-accent font-mono text-[12px] font-medium border border-[color-mix(in_srgb,var(--accent)_25%,transparent)] shrink-0"
+                        >
+                            <Codicon name="file-media" style={{ fontSize: 11 }} />
+                            {part.trim()}
                         </span>
                     )
                 }
@@ -447,9 +472,44 @@ function ThinkingBlock({
 }
 
     /* ── Assistant message ───────────────────────────────────────────── */
+    const todosToRender = useMemo(() => {
+        const rawText = fullText || message.content || ''
+        if (!rawText.includes('<todos>')) return []
+        const ts = rawText.indexOf('<todos>')
+        const te = rawText.indexOf('</todos>')
+        const content = te !== -1 ? rawText.substring(ts + 7, te) : rawText.substring(ts + 7)
+        const lines = content.split('\n').map(l => l.trim()).filter(Boolean)
+        const list: TodoItem[] = []
+        lines.forEach((line, idx) => {
+            const match = line.match(/^-\s*\[([ xX])\]\s*(.+)$/)
+            if (match) {
+                list.push({
+                    id: `todo-${idx}`,
+                    completed: match[1].toLowerCase() === 'x',
+                    text: match[2].trim(),
+                })
+            }
+        })
+        return list
+    }, [fullText, message.content])
+
+    const [todoStates, setTodoStates] = useState<Record<string, boolean>>({})
+    const mergedTodos = useMemo(() => {
+        return todosToRender.map(t => ({
+            ...t,
+            completed: todoStates[t.id] !== undefined ? todoStates[t.id] : t.completed
+        }))
+    }, [todosToRender, todoStates])
+
     return (
         <div className="group mb-3">
             {planToRender && <PlanCard planMarkdown={planToRender} />}
+            {mergedTodos.length > 0 && (
+                <TodosCard
+                    todos={mergedTodos}
+                    onToggle={(id) => setTodoStates(prev => ({ ...prev, [id]: !prev[id] }))}
+                />
+            )}
 
             {segments.map((seg, idx) => {
                 if (seg.type === 'text') {
@@ -459,12 +519,12 @@ function ThinkingBlock({
                         <div key={seg.id} className={idx > 0 ? 'mt-2.5' : ''}>
                             {isActiveText ? (
                                 <StreamingPlainText
-                                    text={seg.content}
+                                    text={stripSpecialTags(seg.content)}
                                     isStreaming={streamPhase === 'streaming'}
                                 />
                             ) : (
                                 <div className="text-[14px] text-ui-fg leading-relaxed">
-                                    <AiMarkdown content={seg.content} />
+                                    <AiMarkdown content={stripSpecialTags(seg.content)} />
                                 </div>
                             )}
                         </div>
@@ -548,6 +608,7 @@ export function AIChatSidebar() {
         label: string
         type: 'file' | 'folder' | 'git' | 'doc' | 'image' | 'codebase' | 'terminal'
         icon: string
+        dataUrl?: string
     }
     const [attachedContexts, setAttachedContexts] = useState<ContextTag[]>([])
     const imageInputRef = useRef<HTMLInputElement>(null)
@@ -555,10 +616,15 @@ export function AIChatSidebar() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file) return
-        setAttachedContexts(prev => [
-            ...prev,
-            { id: `img-${Date.now()}`, label: `📷 ${file.name}`, type: 'image', icon: 'file-media' }
-        ])
+        const reader = new FileReader()
+        reader.onload = () => {
+            const dataUrl = reader.result as string
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `img-${Date.now()}`, label: file.name, type: 'image', icon: 'file-media', dataUrl }
+            ])
+        }
+        reader.readAsDataURL(file)
     }
 
     const handleAddContextTag = (type: 'file' | 'folder' | 'git' | 'doc') => {
@@ -996,7 +1062,7 @@ export function AIChatSidebar() {
                             }
                         }
 
-                        updateTurnText(visibleText)
+                        updateTurnText(stripSpecialTags(visibleText))
 
                     } else if (chunk.type === 'tool_call_start' && chunk.toolCall) {
                         setStreamPhase('tools')
@@ -1038,7 +1104,7 @@ export function AIChatSidebar() {
 
                     } else if (chunk.type === 'error') {
                         thisTurnText += `\n\nError: ${chunk.error}`
-                        updateTurnText(thisTurnText)
+                        updateTurnText(stripSpecialTags(thisTurnText))
                         settleUnfinishedToolCalls(chunk.error || 'Tool call failed before execution.')
                     }
                 }
@@ -1048,6 +1114,7 @@ export function AIChatSidebar() {
                 )
 
                 if (thisTurnToolCalls.length === 0) {
+                    updateTurnText(stripSpecialTags(thisTurnText))
                     finalizeAssistantMessage()
                     setCurrentPlan(null)
                     setStreamPhase('idle')
@@ -1219,6 +1286,8 @@ async function resolveAttachedContexts(contexts: ContextTag[]): Promise<string> 
             } catch {
                 text += `\n[Attached Documentation Context]\n`
             }
+        } else if (ctx.type === 'image') {
+            text += `\n[Attached Media: ${ctx.label}]\n`
         } else if (ctx.type === 'codebase' || ctx.type === 'folder') {
             try {
                 const fullCtx = await buildWorkspaceContext(store.getState() as FullState)
@@ -1296,6 +1365,18 @@ async function resolveAttachedContexts(contexts: ContextTag[]): Promise<string> 
                 return m.role === 'user' && Boolean(m.content && m.content.trim().length > 0)
             })
 
+            const imageTags = activeContexts.filter(c => c.type === 'image' && c.dataUrl)
+            let userPayloadContent: any = promptForAPI
+            if (imageTags.length > 0) {
+                userPayloadContent = [
+                    { type: 'text', text: promptForAPI },
+                    ...imageTags.map(img => ({
+                        type: 'image_url',
+                        image_url: { url: img.dataUrl }
+                    }))
+                ]
+            }
+
             const apiMessages = injectWorkspaceContext(
                 [
                     ...cleanHistory.flatMap((m): any[] => {
@@ -1314,7 +1395,7 @@ async function resolveAttachedContexts(contexts: ContextTag[]): Promise<string> 
                         })
                         return msgs
                     }),
-                    { role: 'user', content: promptForAPI },
+                    { role: 'user', content: userPayloadContent },
                 ],
                 workspaceContext
             )

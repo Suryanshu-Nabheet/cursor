@@ -68,8 +68,9 @@ export function App() {
                 (isControl && e.ctrlKey) || (!isControl && e.metaKey)
 
             if (isCmdOrCtrl) {
-                // Cmd+K - AI inline edit / generate command bar
+                // Cmd+K - AI inline edit / generate command bar (blocked on welcome screen)
                 if (e.key === 'k' && !e.shiftKey) {
+                    if (screenState === 'welcome') return
                     e.preventDefault()
                     e.stopPropagation()
                     if (commandBarOpen) {
@@ -302,7 +303,7 @@ export function App() {
 
     return (
         <>
-            {commandBarOpen && <CommandBar parentCaller={'commandBar'} />}
+            {commandBarOpen && screenState !== 'welcome' && <CommandBar parentCaller={'commandBar'} />}
             <TitleBar
                 titleHeight={titleHeight}
                 useButtons={screenState === 'normal'}

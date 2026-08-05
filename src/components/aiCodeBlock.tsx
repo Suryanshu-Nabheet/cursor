@@ -434,45 +434,65 @@ export function TodosCard({ todos, onToggle }: { todos: TodoItem[]; onToggle?: (
     if (!todos || todos.length === 0) return null
 
     const completedCount = todos.filter(t => t.completed).length
+    const isAllDone = completedCount === todos.length
+    const headerTitle = isAllDone ? `${completedCount} of ${todos.length} Done` : `To-dos ${todos.length}`
+    const activeIndex = todos.findIndex(t => !t.completed)
 
     return (
-        <div className="my-2 rounded-lg border border-ui-border bg-ui-bg-elevated overflow-hidden transition-all">
+        <div className="my-2.5 rounded-xl border border-[var(--ui-border)] bg-[var(--sidebar)] overflow-hidden shadow-sm transition-all">
             <div
-                className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none border-b border-ui-border/60 hover:bg-ui-hover transition-colors"
+                className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer select-none border-b border-[var(--ui-border)] hover:bg-[var(--ui-hover)] transition-colors"
                 onClick={() => setCollapsed(!collapsed)}
             >
                 <Codicon name="checklist" style={{ fontSize: 13, color: 'var(--accent)' }} />
-                <span className="text-[12px] font-bold text-ui-fg">To-dos</span>
-                <span className="text-[11px] font-mono text-ui-fg-muted opacity-75">{completedCount} of {todos.length} Done</span>
+                <span className="text-[12px] font-bold text-[var(--ui-fg)] tracking-wide">{headerTitle}</span>
+                {completedCount > 0 && !isAllDone && (
+                    <span className="text-[11px] font-mono text-[var(--ui-fg-muted)] opacity-70 ml-1">{completedCount} of {todos.length} Done</span>
+                )}
                 <Codicon
                     name={collapsed ? 'chevron-right' : 'chevron-down'}
                     style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}
                 />
             </div>
             {!collapsed && (
-                <div className="p-2.5 flex flex-col gap-1.5 bg-sidebar">
-                    {todos.map(todo => (
-                        <div
-                            key={todo.id}
-                            className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-ui-hover transition-colors group cursor-pointer"
-                            onClick={() => onToggle?.(todo.id)}
-                        >
-                            <span className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                                todo.completed
-                                    ? 'bg-accent border-accent text-white'
-                                    : 'border-ui-border bg-ui-bg-elevated'
-                            }`}>
-                                {todo.completed && <Codicon name="check" style={{ fontSize: 9 }} />}
-                            </span>
-                            <span className={`text-[12px] leading-snug transition-all ${
-                                todo.completed
-                                    ? 'line-through text-ui-fg-muted opacity-50'
-                                    : 'text-ui-fg font-medium'
-                            }`}>
-                                {todo.text}
-                            </span>
-                        </div>
-                    ))}
+                <div className="p-2 flex flex-col gap-1 bg-[var(--ui-bg-elevated)]">
+                    {todos.map((todo, idx) => {
+                        const isActive = idx === activeIndex
+                        return (
+                            <div
+                                key={todo.id}
+                                className={`flex items-start gap-2.5 px-2.5 py-1.5 rounded-lg transition-colors group cursor-pointer ${
+                                    isActive
+                                        ? 'bg-[var(--ui-hover)] border border-[var(--accent)]'
+                                        : 'hover:bg-[var(--ui-hover)] border border-transparent'
+                                }`}
+                                onClick={() => onToggle?.(todo.id)}
+                            >
+                                <span className="mt-0.5 shrink-0 flex items-center justify-center">
+                                    {todo.completed ? (
+                                        <div className="w-4 h-4 rounded-full bg-[var(--accent)] text-white flex items-center justify-center">
+                                            <Codicon name="check" style={{ fontSize: 9 }} />
+                                        </div>
+                                    ) : (
+                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                                            isActive ? 'border-[var(--accent)] bg-[var(--ui-bg-elevated)]' : 'border-[var(--ui-border)] bg-transparent'
+                                        }`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[var(--accent)]' : 'transparent'}`} />
+                                        </div>
+                                    )}
+                                </span>
+                                <span className={`text-[13px] leading-snug transition-all ${
+                                    todo.completed
+                                        ? 'line-through text-[var(--ui-fg-muted)] opacity-50'
+                                        : isActive
+                                            ? 'text-[var(--ui-fg)] font-semibold'
+                                            : 'text-[var(--ui-fg)] font-normal'
+                                }`}>
+                                    {todo.text}
+                                </span>
+                            </div>
+                        )
+                    })}
                 </div>
             )}
         </div>

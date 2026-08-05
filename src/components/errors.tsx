@@ -1,12 +1,8 @@
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { closeError } from '../features/globalSlice'
 import { getError, getShowErrors } from '../features/selectors'
-import {
-    faXmark as faClose,
-    faTriangleExclamation,
-} from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import Modal from 'react-modal'
+import { Codicon } from './codicon'
 
 const customStyles = {
     overlay: {
@@ -15,7 +11,7 @@ const customStyles = {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 100000,
-        backdropFilter: 'blur(10px)',
+        backdropFilter: 'blur(12px)',
     },
     content: {
         padding: '0',
@@ -23,9 +19,11 @@ const customStyles = {
         left: 'auto',
         right: 'auto',
         bottom: 'auto',
-        background: 'none',
+        background: 'transparent',
         border: 'none',
-        width: '500px',
+        outline: 'none',
+        boxShadow: 'none',
+        width: '460px',
         height: 'auto',
         maxWidth: '90vw',
         inset: 'auto',
@@ -42,28 +40,32 @@ export function ErrorPopup() {
             isOpen={showError || error !== null}
             onRequestClose={() => dispatch(closeError())}
             style={customStyles}
-            contentLabel="Error Notification"
+            contentLabel="Notification"
         >
-            <div className="errorPopup">
-                <div className="errorPopup__title">
-                    <FontAwesomeIcon icon={faTriangleExclamation} />
-                    <div className="errorPopup__title_text">
-                        {error?.title || 'System Error'}
+            <div className="rounded-2xl border border-[var(--ui-border)] bg-[var(--ui-bg-elevated)] p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150 relative overflow-hidden">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-[var(--ui-hover)] border border-[var(--ui-border)] flex items-center justify-center text-[var(--accent)]">
+                            <Codicon name="warning" style={{ fontSize: 14 }} />
+                        </div>
+                        <h3 className="text-[15px] font-bold text-ui-fg tracking-wide">
+                            {error?.title || 'AI Command Bar'}
+                        </h3>
                     </div>
-                    <div
-                        className="errorPopup__title_close icon-button"
-                        onClick={() => dispatch(closeError())}
-                    >
-                        <FontAwesomeIcon icon={faClose} />
-                    </div>
-                </div>
-                <div className="errorPopup__body">
-                    {error?.message ||
-                        'Something unexpected happened. Please try again later. If this continues, please contact suryanshunab@gmail.com.'}
-                </div>
-                <div className="mt-8 flex justify-end">
                     <button
-                        className="primary-button bg-red-600 hover:bg-red-500"
+                        className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
+                        onClick={() => dispatch(closeError())}
+                        title="Close"
+                    >
+                        <Codicon name="close" style={{ fontSize: 12 }} />
+                    </button>
+                </div>
+                <div className="text-[13px] text-ui-fg-muted leading-relaxed mb-6 font-sans">
+                    {error?.message || 'Open a file in the editor first.'}
+                </div>
+                <div className="flex items-center justify-end">
+                    <button
+                        className="px-4 py-2 bg-accent text-white text-[12px] font-semibold rounded-lg hover:opacity-90 transition-all cursor-pointer shadow-sm"
                         onClick={() => dispatch(closeError())}
                     >
                         Dismiss

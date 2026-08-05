@@ -148,110 +148,103 @@ export default function SearchFiles() {
                         <kbd className="qo-mode-shortcut">⌘P</kbd>
                     </div>
 
-                    <Combobox value={selected} onChange={setSelected}>
-                        {/* Input row */}
-                        <div className="qo-input-row">
-                            <span className="qo-search-icon">
-                                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                                    <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                                </svg>
-                            </span>
-                            <Combobox.Input
-                                className="qo-input"
-                                placeholder="Search files by name..."
-                                displayValue={(file: FileResult) => file?.filename ?? ''}
-                                onChange={(event: any) => {
-                                    setQuery(event.target.value)
-                                    setSelectedIndex(0)
-                                }}
-                                onKeyDown={(e: any) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault()
-                                        if (displayedResults[selectedIndex]) {
-                                            openSelected(displayedResults[selectedIndex])
-                                        }
-                                    } else if (e.key === 'ArrowDown') {
-                                        e.preventDefault()
-                                        setSelectedIndex(
-                                            selectedIndex >= displayedResults.length - 1
-                                                ? 0
-                                                : selectedIndex + 1
-                                        )
-                                    } else if (e.key === 'ArrowUp') {
-                                        e.preventDefault()
-                                        setSelectedIndex(
-                                            selectedIndex <= 0
-                                                ? displayedResults.length - 1
-                                                : selectedIndex - 1
-                                        )
-                                    } else if (e.key === 'Escape') {
-                                        e.preventDefault()
-                                        dispatch(untriggerFileSearch())
+                    <div className="qo-input-row">
+                        <span className="qo-search-icon">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
+                                <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                        </span>
+                        <input
+                            className="qo-input"
+                            placeholder="Search files by name..."
+                            value={query}
+                            onChange={(event: any) => {
+                                setQuery(event.target.value)
+                                setSelectedIndex(0)
+                            }}
+                            onKeyDown={(e: any) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    if (displayedResults[selectedIndex]) {
+                                        openSelected(displayedResults[selectedIndex])
                                     }
+                                } else if (e.key === 'ArrowDown') {
+                                    e.preventDefault()
+                                    setSelectedIndex(prev => (
+                                        displayedResults.length === 0 ? 0 : (prev + 1) % displayedResults.length
+                                    ))
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault()
+                                    setSelectedIndex(prev => (
+                                        displayedResults.length === 0 ? 0 : (prev - 1 + displayedResults.length) % displayedResults.length
+                                    ))
+                                } else if (e.key === 'Escape') {
+                                    e.preventDefault()
+                                    dispatch(untriggerFileSearch())
+                                }
+                            }}
+                            ref={comboRef}
+                            autoComplete="off"
+                            spellCheck={false}
+                        />
+                        {query && (
+                            <button
+                                className="qo-clear-btn"
+                                onMouseDown={(e) => {
+                                    e.preventDefault()
+                                    setQuery('')
+                                    comboRef.current?.focus()
                                 }}
-                                ref={comboRef}
-                                autoComplete="off"
-                                spellCheck={false}
-                            />
-                            {query && (
-                                <button
-                                    className="qo-clear-btn"
-                                    onMouseDown={(e) => {
-                                        e.preventDefault()
-                                        setQuery('')
-                                        comboRef.current?.focus()
-                                    }}
-                                    tabIndex={-1}
-                                    aria-label="Clear"
-                                >
-                                    ✕
-                                </button>
-                            )}
-                        </div>
+                                tabIndex={-1}
+                                aria-label="Clear"
+                            >
+                                ✕
+                            </button>
+                        )}
+                    </div>
 
-                        <Combobox.Options static className="qo-list">
-                            {/* Section label */}
-                            {!query && recentFiles.length > 0 && (
-                                <div className="qo-section-header">Recently Opened</div>
-                            )}
-                            {!query && recentFiles.length === 0 && results.length > 0 && (
-                                <div className="qo-section-header">All Files</div>
-                            )}
-                            {query && results.length > 0 && (
-                                <div className="qo-section-header">
-                                    {results.length} result{results.length !== 1 ? 's' : ''}
-                                </div>
-                            )}
+                    <div className="qo-list">
+                        {/* Section label */}
+                        {!query && recentFiles.length > 0 && (
+                            <div className="qo-section-header">Recently Opened</div>
+                        )}
+                        {!query && recentFiles.length === 0 && results.length > 0 && (
+                            <div className="qo-section-header">All Files</div>
+                        )}
+                        {query && results.length > 0 && (
+                            <div className="qo-section-header">
+                                {results.length} result{results.length !== 1 ? 's' : ''}
+                            </div>
+                        )}
 
-                            {/* Results */}
-                            {displayedResults.length === 0 ? (
-                                <div className="qo-empty-state">
-                                    {query ? (
-                                        <>
-                                            <span className="qo-empty-icon">⊘</span>
-                                            <span>No files match &ldquo;{query}&rdquo;</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="qo-empty-icon">⊡</span>
-                                            <span>No files in workspace</span>
-                                        </>
-                                    )}
-                                </div>
-                            ) : (
-                                displayedResults.map((path: string, index: number) => (
-                                    <SearchResult
-                                        key={path}
-                                        query={childQuery}
-                                        path={path}
-                                        isSelected={index === selectedIndex}
-                                        onOpen={openSelected}
-                                    />
-                                ))
-                            )}
-                        </Combobox.Options>
-                    </Combobox>
+                        {/* Results */}
+                        {displayedResults.length === 0 ? (
+                            <div className="qo-empty-state">
+                                {query ? (
+                                    <>
+                                        <span className="qo-empty-icon">⊘</span>
+                                        <span>No files match &ldquo;{query}&rdquo;</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="qo-empty-icon">⊡</span>
+                                        <span>No files in workspace</span>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            displayedResults.map((path: string, index: number) => (
+                                <SearchResult
+                                    key={path}
+                                    query={childQuery}
+                                    path={path}
+                                    isSelected={index === selectedIndex}
+                                    onOpen={openSelected}
+                                />
+                            ))
+                        )}
+                    </div>
 
                     {/* Footer */}
                     <div className="qo-footer">

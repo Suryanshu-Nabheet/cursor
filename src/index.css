@@ -3574,15 +3574,25 @@ cm-diff-cancel>div {
 }
 
 /* ============================================
-   ERROR POPUP - Enterprise Design
+   ERROR POPUP & MODALS - Pure Theme Variable Sync
    ============================================ */
+.ReactModal__Content,
+.ReactModal__Content--after-open,
+.ReactModal__Content--before-close {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+}
+
 .errorPopup {
-    background-color: var(--black-elevated);
+    background-color: var(--ui-bg-elevated);
     color: var(--ui-fg);
     width: 100%;
     padding: var(--spacing-xl);
     border-radius: var(--radius-xl);
-    border: 1px solid var(--red);
+    border: 1px solid var(--ui-border);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
