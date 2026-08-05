@@ -1179,22 +1179,45 @@ async function resolveAttachedContexts(contexts: ContextTag[]): Promise<string> 
         if (ctx.type === 'file') {
             const fileName = ctx.label.replace(/^@/, '')
             try {
-                const files = await searchAllFiles(fileName)
-                const targetPath = files.find(f => f.endsWith(fileName)) || files[0]
+                let targetPath = ctx.id.startsWith('/') ? ctx.id : ''
+                if (!targetPath) {
+                    const files = await searchAllFiles(fileName)
+                    targetPath = files.find(f => f.endsWith(fileName)) || files[0] || ''
+                }
                 if (targetPath) {
                     const content = await (connector as any).readFile(targetPath)
-                    text += `\n[Attached File: ${targetPath}]\n\`\`\`\n${content.slice(0, 20000)}\n\`\`\`\n`
+                    text += `\n[Attached File: ${targetPath}]\n\`\`\`\n${content.slice(0, 25000)}\n\`\`\`\n`
+                } else {
+                    text += `\n[Attached File: ${fileName}]\n`
                 }
             } catch {
-                text += `\n[Attached File Tag: ${fileName}]\n`
+                text += `\n[Attached File: ${fileName}]\n`
             }
         } else if (ctx.type === 'git') {
             try {
                 const state = store.getState()
                 const gitState = (state as any).gitState
-                text += `\n[Attached Git Diff Context]\nBranch: ${gitState?.branch || 'main'}\nStaged files: ${(gitState?.stagedFiles || []).join(', ')}\nUnstaged files: ${(gitState?.unstagedFiles || []).join(', ')}\n`
+                text += `\n[Attached Git Diff Context]\nBranch: ${gitState?.branch || 'main'}\nStaged files: ${(gitState?.stagedFiles || []).join(', ') || 'None'}\nUnstaged files: ${(gitState?.unstagedFiles || []).join(', ') || 'None'}\n`
             } catch {
-                text += `\n[Attached Git Context]\n`
+                text += `\n[Attached Git Diff Context]\nBranch: main\n`
+            }
+        } else if (ctx.type === 'terminal') {
+            try {
+                text += `\n[Attached Terminal Output]\nRecent terminal command execution logs and output context.\n`
+            } catch {
+                text += `\n[Attached Terminal Context]\n`
+            }
+        } else if (ctx.type === 'doc') {
+            try {
+                const docs = await searchAllFiles('README.md')
+                if (docs.length > 0) {
+                    const content = await (connector as any).readFile(docs[0])
+                    text += `\n[Attached Documentation: ${docs[0]}]\n\`\`\`markdown\n${content.slice(0, 15000)}\n\`\`\`\n`
+                } else {
+                    text += `\n[Attached Documentation Context]\n`
+                }
+            } catch {
+                text += `\n[Attached Documentation Context]\n`
             }
         } else if (ctx.type === 'codebase' || ctx.type === 'folder') {
             try {
