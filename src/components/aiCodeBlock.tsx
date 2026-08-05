@@ -421,9 +421,64 @@ export function DiffView({
 }
 
 /**
- * Plan Card Component
- * Renders the execution plan
+ * TodosCard Component (Enterprise Task Checklist matching screenshot)
  */
+export interface TodoItem {
+    id: string
+    text: string
+    completed: boolean
+}
+
+export function TodosCard({ todos, onToggle }: { todos: TodoItem[]; onToggle?: (id: string) => void }) {
+    const [collapsed, setCollapsed] = useState(false)
+    if (!todos || todos.length === 0) return null
+
+    const completedCount = todos.filter(t => t.completed).length
+
+    return (
+        <div className="my-2 rounded-lg border border-ui-border bg-ui-bg-elevated overflow-hidden transition-all">
+            <div
+                className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none border-b border-ui-border/60 hover:bg-ui-hover transition-colors"
+                onClick={() => setCollapsed(!collapsed)}
+            >
+                <Codicon name="checklist" style={{ fontSize: 13, color: 'var(--accent)' }} />
+                <span className="text-[12px] font-bold text-ui-fg">To-dos</span>
+                <span className="text-[11px] font-mono text-ui-fg-muted opacity-75">{completedCount} of {todos.length} Done</span>
+                <Codicon
+                    name={collapsed ? 'chevron-right' : 'chevron-down'}
+                    style={{ marginLeft: 'auto', fontSize: 11, opacity: 0.6 }}
+                />
+            </div>
+            {!collapsed && (
+                <div className="p-2.5 flex flex-col gap-1.5 bg-sidebar">
+                    {todos.map(todo => (
+                        <div
+                            key={todo.id}
+                            className="flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-ui-hover transition-colors group cursor-pointer"
+                            onClick={() => onToggle?.(todo.id)}
+                        >
+                            <span className={`mt-0.5 w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                                todo.completed
+                                    ? 'bg-accent border-accent text-white'
+                                    : 'border-ui-border bg-ui-bg-elevated'
+                            }`}>
+                                {todo.completed && <Codicon name="check" style={{ fontSize: 9 }} />}
+                            </span>
+                            <span className={`text-[12px] leading-snug transition-all ${
+                                todo.completed
+                                    ? 'line-through text-ui-fg-muted opacity-50'
+                                    : 'text-ui-fg font-medium'
+                            }`}>
+                                {todo.text}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
 export function PlanCard({ planMarkdown }: { planMarkdown: string }) {
     const [collapsed, setCollapsed] = useState(false)
     if (!planMarkdown) return null

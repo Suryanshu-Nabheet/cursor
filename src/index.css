@@ -1267,6 +1267,45 @@ body {
     }
 }
 
+/* Text Shimmer Effect */
+@keyframes text-shimmer-sweep {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.text-shimmer {
+    background: linear-gradient(
+        90deg,
+        var(--accent) 0%,
+        var(--ui-fg) 35%,
+        #a78bfa 50%,
+        var(--ui-fg) 65%,
+        var(--accent) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer-sweep 2.5s ease-in-out infinite;
+}
+
+.text-shimmer-subtle {
+    background: linear-gradient(
+        90deg,
+        var(--ui-fg-muted) 0%,
+        var(--ui-fg) 40%,
+        var(--accent) 60%,
+        var(--ui-fg-muted) 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: text-shimmer-sweep 3s ease-in-out infinite;
+}
+
 .window__leftpane {
     padding-bottom: 0;
     min-width: 10rem;

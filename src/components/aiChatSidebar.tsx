@@ -19,7 +19,8 @@ import { setSettingsTab } from '../features/settings/settingsSlice'
 import { getActiveFileId } from '../features/window/paneUtils'
 import { getPathForFileId } from '../features/window/fileUtils'
 import { FullState } from '../features/window/state'
-import { CodeBlock, ToolCallCard, PlanCard } from './aiCodeBlock'
+import { CodeBlock, ToolCallCard, PlanCard, TodosCard, TodoItem } from './aiCodeBlock'
+import { searchAllFiles } from '../features/selectors'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import '../styles/aiCodeBlock.css'
@@ -98,7 +99,7 @@ function deriveSegmentsFromMessage(message: Message): TurnSegment[] {
 // ─── Shimmer Loader ───────────────────────────────────────────────────────────
 function ShimmerLoader({ label }: { label?: string }) {
     return (
-        <div className="flex flex-col gap-1.5 py-2">
+        <div className="flex flex-col gap-2 py-2.5">
             {/* Sweeping shimmer bar */}
             <div
                 className="h-0.5 rounded-full bg-[length:200%_100%] animate-shimmer"
@@ -108,7 +109,7 @@ function ShimmerLoader({ label }: { label?: string }) {
                 }}
             />
             {label && (
-                <span className="text-[10px] text-ui-fg-muted opacity-60 italic tracking-wide">
+                <span className="text-[12px] font-medium text-shimmer tracking-wide">
                     {label}
                 </span>
             )}
@@ -120,7 +121,7 @@ function ShimmerLoader({ label }: { label?: string }) {
 function TypingCursor() {
     return (
         <span
-            className="inline-block w-0.5 h-3.5 rounded-sm bg-accent ml-0.5 align-text-bottom animate-blink"
+            className="inline-block w-0.5 h-4 rounded-sm bg-accent ml-0.5 align-text-bottom animate-blink"
             aria-hidden="true"
         />
     )
@@ -138,7 +139,7 @@ function StreamingPlainText({
     if (!text && !isStreaming) return null
     return (
         <div
-            className={`text-[13px] leading-relaxed break-words ${
+            className={`text-[14px] leading-relaxed break-words ${
                 muted ? 'text-ui-fg-muted opacity-80' : 'text-ui-fg'
             }`}
         >
@@ -268,23 +269,23 @@ function ToolCallsGroup({
     return (
         <div className={`rounded-md border ${borderClass} overflow-hidden mb-2 transition-[border-color] duration-200`}>
             <button
-                className="flex items-center gap-2 w-full px-2.5 py-1.5 text-left hover:bg-ui-hover transition-colors"
+                className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-ui-hover transition-colors"
                 onClick={() => setExpanded(e => !e)}
             >
                 <span className="w-4 flex items-center justify-center shrink-0">{statusIcon}</span>
-                <span className="text-[11px] font-medium text-ui-fg flex-1">{headerLabel}</span>
+                <span className={`text-[12px] font-semibold flex-1 ${runningTool ? 'text-shimmer' : 'text-ui-fg'}`}>{headerLabel}</span>
                 <div className="flex items-center gap-2 shrink-0">
                     {isStreaming && runningTool && (
                         <div
-                            className="w-7 h-0.5 rounded-full animate-shimmer-fast"
+                            className="w-8 h-0.5 rounded-full animate-shimmer-fast"
                             style={{
                                 background: 'linear-gradient(90deg, transparent, var(--accent), transparent)',
                                 backgroundSize: '200% 100%',
                             }}
                         />
                     )}
-                    <span className="text-[10px] text-ui-fg-muted opacity-60 font-mono">{doneCount}/{totalCount}</span>
-                    <Codicon name={expanded ? 'chevron-up' : 'chevron-down'} style={{ fontSize: 10, opacity: 0.5 }} />
+                    <span className="text-[11px] text-ui-fg-muted font-mono">{doneCount}/{totalCount}</span>
+                    <Codicon name={expanded ? 'chevron-up' : 'chevron-down'} style={{ fontSize: 11, opacity: 0.6 }} />
                 </div>
             </button>
             {expanded && (
@@ -355,16 +356,39 @@ function MessageBubble({
     const doneTools = allToolCalls.filter(tc => tc.success !== undefined).length
     const totalTools = allToolCalls.length
 
+function FormattedUserText({ text }: { text: string }) {
+    if (!text) return null
+    const parts = text.split(/(@[a-zA-Z0-9_\-\.\/:]+)/g)
+    return (
+        <span>
+            {parts.map((part, idx) => {
+                if (part.startsWith('@') && part.length > 1) {
+                    return (
+                        <span
+                            key={idx}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-[color-mix(in_srgb,var(--accent)_18%,transparent)] text-accent font-mono text-[12px] font-semibold border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] shrink-0"
+                        >
+                            <Codicon name="tag" style={{ fontSize: 10 }} />
+                            {part}
+                        </span>
+                    )
+                }
+                return <span key={idx}>{part}</span>
+            })}
+        </span>
+    )
+}
+
     /* ── User message ────────────────────────────────────────────────── */
     if (isUser) {
         return (
-            <div className="group flex justify-end mb-4">
+            <div className="group flex justify-end mb-2.5">
                 <div className="max-w-[88%]">
-                    <div className="bg-ui-bg-elevated border border-ui-border rounded-lg px-3.5 py-2.5 text-[13px] text-ui-fg leading-relaxed whitespace-pre-wrap break-words">
-                        {message.content}
+                    <div className="bg-ui-bg-elevated border border-ui-border rounded-xl px-4 py-2.5 text-[14px] text-ui-fg leading-relaxed whitespace-pre-wrap break-words">
+                        <FormattedUserText text={message.content} />
                     </div>
                     <div className="flex items-center justify-end gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[9px] font-mono text-ui-fg-muted opacity-50">
+                        <span className="text-[10px] font-mono text-ui-fg-muted opacity-60">
                             {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
                         {onRetry && (
@@ -373,7 +397,7 @@ function MessageBubble({
                                 onClick={onRetry}
                                 title="Edit and resend"
                             >
-                                <Codicon name="edit" style={{ fontSize: 10 }} />
+                                <Codicon name="edit" style={{ fontSize: 11 }} />
                             </button>
                         )}
                     </div>
@@ -382,84 +406,97 @@ function MessageBubble({
         )
     }
 
+/**
+ * Thinking Block Component (Enterprise Thinking / Sub-agent Activity toggle matching screenshot)
+ */
+function ThinkingBlock({
+    isThinking,
+    thinkingTimeSeconds,
+    details,
+}: {
+    isThinking: boolean
+    thinkingTimeSeconds?: number
+    details?: string[]
+}) {
+    const [collapsed, setCollapsed] = useState(false)
+    const timeLabel = thinkingTimeSeconds ? `Thought for ${thinkingTimeSeconds} seconds` : 'Thought for a few seconds'
+
+    return (
+        <div className="my-1.5 text-ui-fg-muted font-sans text-[13px]">
+            <div
+                className="flex items-center gap-2 cursor-pointer select-none py-1 hover:text-ui-fg transition-colors opacity-80 hover:opacity-100"
+                onClick={() => setCollapsed(!collapsed)}
+            >
+                <span className="font-medium">{isThinking ? 'Thinking…' : timeLabel}</span>
+                <Codicon
+                    name={collapsed ? 'chevron-right' : 'chevron-down'}
+                    style={{ fontSize: 10, opacity: 0.6 }}
+                />
+            </div>
+            {!collapsed && details && details.length > 0 && (
+                <div className="mt-1 pl-3 border-l border-ui-border/60 flex flex-col gap-1 text-[12px] opacity-75">
+                    {details.map((item, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                            <span>{item}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
     /* ── Assistant message ───────────────────────────────────────────── */
     return (
-        <div className="group mb-5">
-            {/* Header row */}
-            <div className="flex items-center gap-2 mb-2">
-                <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-accent bg-[color-mix(in_srgb,var(--accent)_15%,transparent)]"
-                >
-                    <Codicon name="sparkle" style={{ fontSize: 10 }} />
-                </div>
-                <span className="text-[11px] font-medium text-ui-fg-muted opacity-60">Assistant</span>
+        <div className="group mb-3">
+            {planToRender && <PlanCard planMarkdown={planToRender} />}
 
-                {totalTools > 0 && (
-                    <div
-                        className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-accent text-[9px] font-semibold bg-[color-mix(in_srgb,var(--accent)_10%,transparent)]"
-                    >
-                        <Codicon name="tools" style={{ fontSize: 9 }} />
-                        <span>{isStreaming ? `${doneTools}/${totalTools}` : totalTools}</span>
-                    </div>
-                )}
-
-                {isStreaming && (
-                    <div className="ml-auto">
-                        <span
-                            className="block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot"
-                            style={{ boxShadow: '0 0 6px var(--accent)' }}
-                        />
-                    </div>
-                )}
-            </div>
-
-            {/* Content area */}
-            <div className="pl-7">
-                {planToRender && <PlanCard planMarkdown={planToRender} />}
-
-                {segments.map((seg, idx) => {
-                    if (seg.type === 'text') {
-                        if (!seg.content && !(isStreaming && seg.id === activeTextSegmentId)) return null
-                        const isActiveText = isStreaming && seg.id === activeTextSegmentId
-                        return (
-                            <div key={seg.id} className={idx > 0 ? 'mt-3' : ''}>
-                                {isActiveText ? (
-                                    <StreamingPlainText
-                                        text={seg.content}
-                                        isStreaming={streamPhase === 'streaming'}
-                                    />
-                                ) : (
-                                    <div className="text-[13px] text-ui-fg leading-relaxed">
-                                        <AiMarkdown content={seg.content} />
-                                    </div>
-                                )}
-                            </div>
-                        )
-                    }
-
-                    if (seg.toolCalls.length === 0) return null
+            {segments.map((seg, idx) => {
+                if (seg.type === 'text') {
+                    if (!seg.content && !(isStreaming && seg.id === activeTextSegmentId)) return null
+                    const isActiveText = isStreaming && seg.id === activeTextSegmentId
                     return (
-                        <div key={seg.id} className={idx > 0 ? 'mt-3' : ''}>
-                            <ToolCallsGroup
-                                toolCalls={seg.toolCalls}
-                                onToolApproval={onToolApproval}
-                                isStreaming={isStreaming}
-                            />
+                        <div key={seg.id} className={idx > 0 ? 'mt-2.5' : ''}>
+                            {isActiveText ? (
+                                <StreamingPlainText
+                                    text={seg.content}
+                                    isStreaming={streamPhase === 'streaming'}
+                                />
+                            ) : (
+                                <div className="text-[14px] text-ui-fg leading-relaxed">
+                                    <AiMarkdown content={seg.content} />
+                                </div>
+                            )}
                         </div>
                     )
-                })}
+                }
 
-                {isStreaming && segments.length === 0 && (
-                    <ShimmerLoader label={
-                        streamPhase === 'executing' || allToolCalls.some(tc => tc.isExecuting)
+                if (seg.toolCalls.length === 0) return null
+                return (
+                    <div key={seg.id} className={idx > 0 ? 'mt-2.5' : ''}>
+                        <ToolCallsGroup
+                            toolCalls={seg.toolCalls}
+                            onToolApproval={onToolApproval}
+                            isStreaming={isStreaming}
+                        />
+                    </div>
+                )
+            })}
+
+            {isStreaming && (
+                <div className="flex items-center gap-2 mt-2 py-1 text-[12px] font-medium text-ui-fg-muted">
+                    <Codicon name="loading" className="codicon-modifier-spin text-accent" style={{ fontSize: 12 }} />
+                    <span className="text-shimmer">
+                        {allToolCalls.some(tc => tc.isExecuting)
                             ? `Running ${allToolCalls.find(tc => tc.isExecuting)?.name?.replace(/_/g, ' ') ?? 'tool'}…`
                             : allToolCalls.some(tc => tc.isPending)
                                 ? 'Preparing tool call…'
-                                : totalTools > 0 && doneTools === totalTools
-                                    ? 'Synthesizing results…'
-                                    : 'Thinking…'
-                    } />
-                )}
+                                : streamPhase === 'streaming' || segments.some(s => s.type === 'text')
+                                    ? 'Generating response…'
+                                    : 'Thinking…'}
+                    </span>
+                </div>
+            )}
 
                 {!isStreaming && segments.length > 0 && (
                     <div className="flex items-center justify-end gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -477,7 +514,6 @@ function MessageBubble({
                         )}
                     </div>
                 )}
-            </div>
         </div>
     )
 }
@@ -505,6 +541,181 @@ export function AIChatSidebar() {
     const [queuedPrompts, setQueuedPrompts] = useState<string[]>([])
     const [streamingSegments, setStreamingSegments] = useState<TurnSegment[]>([])
     const [streamPhase, setStreamPhase] = useState<StreamPhase>('idle')
+
+    // ── Context Attachment Tags ─────────────────────────────────────────────
+    interface ContextTag {
+        id: string
+        label: string
+        type: 'file' | 'folder' | 'git' | 'doc' | 'image' | 'codebase' | 'terminal'
+        icon: string
+    }
+    const [attachedContexts, setAttachedContexts] = useState<ContextTag[]>([])
+    const imageInputRef = useRef<HTMLInputElement>(null)
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setAttachedContexts(prev => [
+            ...prev,
+            { id: `img-${Date.now()}`, label: `📷 ${file.name}`, type: 'image', icon: 'file-media' }
+        ])
+    }
+
+    const handleAddContextTag = (type: 'file' | 'folder' | 'git' | 'doc') => {
+        if (type === 'file') {
+            const fileName = activeFilePath?.split('/').pop() || 'active-file'
+            if (attachedContexts.some(c => c.label.includes(fileName))) return
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `file-${Date.now()}`, label: `@${fileName}`, type: 'file', icon: 'file' }
+            ])
+        } else if (type === 'git') {
+            if (attachedContexts.some(c => c.label === '@git:diff')) return
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `git-${Date.now()}`, label: '@git:diff', type: 'git', icon: 'git-commit' }
+            ])
+        } else if (type === 'folder') {
+            if (attachedContexts.some(c => c.label === '@workspace')) return
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `folder-${Date.now()}`, label: '@workspace', type: 'folder', icon: 'folder' }
+            ])
+        } else if (type === 'doc') {
+            if (attachedContexts.some(c => c.label === '@docs')) return
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `doc-${Date.now()}`, label: '@docs', type: 'doc', icon: 'book' }
+            ])
+        }
+    }
+
+    // ── `@` Mention Autocomplete Popup State ────────────────────────────────
+    interface MentionItem {
+        id: string
+        label: string
+        desc: string
+        icon: string
+        type: 'file' | 'folder' | 'git' | 'doc' | 'codebase' | 'terminal'
+    }
+
+    const [showMentionPopup, setShowMentionPopup] = useState(false)
+    const [mentionQuery, setMentionQuery] = useState('')
+    const [mentionIndex, setMentionIndex] = useState(0)
+    const [mentionResults, setMentionResults] = useState<MentionItem[]>([])
+
+    const defaultMentionTargets: MentionItem[] = useMemo(() => [
+        { id: 'workspace', label: '@workspace', desc: 'Current workspace files', icon: 'folder', type: 'folder' },
+        { id: 'git-diff', label: '@git:diff', desc: 'Active git changes & diff', icon: 'git-commit', type: 'git' },
+        { id: 'codebase', label: '@codebase', desc: 'Full codebase context', icon: 'symbol-structure', type: 'codebase' },
+        { id: 'terminal', label: '@terminal', desc: 'Recent terminal output', icon: 'terminal', type: 'terminal' },
+        { id: 'docs', label: '@docs', desc: 'Project documentation', icon: 'book', type: 'doc' },
+    ], [])
+
+    useEffect(() => {
+        if (!showMentionPopup) return
+        let cancelled = false
+        const filterDefault = defaultMentionTargets.filter(item =>
+            item.label.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+            item.desc.toLowerCase().includes(mentionQuery.toLowerCase())
+        )
+
+        void searchAllFiles(mentionQuery).then(files => {
+            if (cancelled) return
+            const fileItems: MentionItem[] = files.slice(0, 7).map(filePath => {
+                const fileName = filePath.split('/').pop() || filePath
+                return {
+                    id: filePath,
+                    label: `@${fileName}`,
+                    desc: filePath,
+                    icon: 'file',
+                    type: 'file',
+                }
+            })
+            setMentionResults([...filterDefault, ...fileItems])
+            setMentionIndex(0)
+        })
+
+        return () => { cancelled = true }
+    }, [showMentionPopup, mentionQuery, defaultMentionTargets])
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value
+        setInput(val)
+
+        const cursorPos = e.target.selectionStart || val.length
+        const textBeforeCursor = val.slice(0, cursorPos)
+        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_\-\.\/]*)$/)
+
+        if (match) {
+            setShowMentionPopup(true)
+            setMentionQuery(match[1])
+        } else {
+            setShowMentionPopup(false)
+        }
+    }
+
+    // Auto-scroll active mention item into view
+    useEffect(() => {
+        if (!showMentionPopup) return
+        const el = document.querySelector('.mention-item--selected')
+        el?.scrollIntoView({ block: 'nearest' })
+    }, [mentionIndex, showMentionPopup])
+
+    const selectMentionItem = (item: MentionItem) => {
+        if (!textareaRef.current) return
+        const val = input
+        const cursorPos = textareaRef.current.selectionStart || val.length
+        const textBeforeCursor = val.slice(0, cursorPos)
+        const textAfterCursor = val.slice(cursorPos)
+
+        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_\-\.\/]*)$/)
+        if (match) {
+            const atIndex = textBeforeCursor.lastIndexOf('@' + match[1])
+            const newTextBefore = textBeforeCursor.slice(0, atIndex).trimEnd()
+            setInput((newTextBefore ? newTextBefore + ' ' : '') + textAfterCursor)
+        }
+
+        if (!attachedContexts.some(c => c.label === item.label)) {
+            setAttachedContexts(prev => [
+                ...prev,
+                { id: `${item.id}-${Date.now()}`, label: item.label, type: item.type, icon: item.icon }
+            ])
+        }
+
+        setShowMentionPopup(false)
+        setTimeout(() => textareaRef.current?.focus(), 30)
+    }
+
+    const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (showMentionPopup && mentionResults.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setMentionIndex(prev => (prev + 1) % mentionResults.length)
+                return
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setMentionIndex(prev => (prev - 1 + mentionResults.length) % mentionResults.length)
+                return
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault()
+                selectMentionItem(mentionResults[mentionIndex])
+                return
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault()
+                setShowMentionPopup(false)
+                return
+            }
+        }
+
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSend()
+        }
+    }
 
     // ── Refs ─────────────────────────────────────────────────────────────────
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -961,8 +1172,45 @@ export function AIChatSidebar() {
         [rootPath, settings, dispatch, setCurrentPlan, updateTurnText, upsertToolCall, settleUnfinishedToolCalls, finalizeAssistantMessage]
     )
 
+async function resolveAttachedContexts(contexts: ContextTag[]): Promise<string> {
+    if (!contexts || contexts.length === 0) return ''
+    let text = '\n\n--- USER ATTACHED CONTEXT ---\n'
+    for (const ctx of contexts) {
+        if (ctx.type === 'file') {
+            const fileName = ctx.label.replace(/^@/, '')
+            try {
+                const files = await searchAllFiles(fileName)
+                const targetPath = files.find(f => f.endsWith(fileName)) || files[0]
+                if (targetPath) {
+                    const content = await (connector as any).readFile(targetPath)
+                    text += `\n[Attached File: ${targetPath}]\n\`\`\`\n${content.slice(0, 20000)}\n\`\`\`\n`
+                }
+            } catch {
+                text += `\n[Attached File Tag: ${fileName}]\n`
+            }
+        } else if (ctx.type === 'git') {
+            try {
+                const state = store.getState()
+                const gitState = (state as any).gitState
+                text += `\n[Attached Git Diff Context]\nBranch: ${gitState?.branch || 'main'}\nStaged files: ${(gitState?.stagedFiles || []).join(', ')}\nUnstaged files: ${(gitState?.unstagedFiles || []).join(', ')}\n`
+            } catch {
+                text += `\n[Attached Git Context]\n`
+            }
+        } else if (ctx.type === 'codebase' || ctx.type === 'folder') {
+            try {
+                const fullCtx = await buildWorkspaceContext(store.getState() as FullState)
+                text += `\n[Attached Workspace Context]\n${fullCtx}\n`
+            } catch {
+                text += `\n[Attached Workspace Context]\n`
+            }
+        }
+    }
+    text += '--- END ATTACHED CONTEXT ---\n'
+    return text
+}
+
     // ── Send ─────────────────────────────────────────────────────────────────
-    const beginTurn = useCallback(async (prompt: string, history: Message[]) => {
+    const beginTurn = useCallback(async (prompt: string, history: Message[], activeContexts: ContextTag[] = []) => {
         const trimmedPrompt = prompt.trim()
         if (!trimmedPrompt) return
         if (!isAIConfigured) {
@@ -1007,30 +1255,43 @@ export function AIChatSidebar() {
         try {
             const { model, provider, apiKey } = await getModelToUse()
 
+            const resolvedContextText = await resolveAttachedContexts(activeContexts)
+            const promptForAPI = resolvedContextText ? `${trimmedPrompt}\n${resolvedContextText}` : trimmedPrompt
+
             const workspaceContext =
                 settings.workspaceContextEnabled === false
                     ? ''
                     : await buildWorkspaceContext(
                           store.getState() as FullState
                       )
+            const cleanHistory = history.filter(m => {
+                if (m.role === 'assistant') {
+                    const hasContent = Boolean(m.content && m.content.trim().length > 0)
+                    const hasTools = Boolean(m.toolCalls && m.toolCalls.length > 0)
+                    return hasContent || hasTools
+                }
+                return m.role === 'user' && Boolean(m.content && m.content.trim().length > 0)
+            })
+
             const apiMessages = injectWorkspaceContext(
                 [
-                    ...history.flatMap((m): any[] => {
+                    ...cleanHistory.flatMap((m): any[] => {
                         if (m.role === 'user') return [{ role: 'user', content: m.content }]
                         const msgs: any[] = []
                         const tcs = m.toolCalls?.map(tc => ({
                             id: tc.id, type: 'function',
-                            function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+                            function: { name: tc.name, arguments: JSON.stringify(tc.arguments || {}) },
                         }))
-                        msgs.push({ role: 'assistant', content: m.content || null, tool_calls: tcs?.length ? tcs : undefined })
+                        const assistantText = m.content && m.content.trim() ? m.content : (tcs?.length ? '' : '...')
+                        msgs.push({ role: 'assistant', content: assistantText, tool_calls: tcs?.length ? tcs : undefined })
                         m.toolCalls?.forEach(tc => {
                             if (tc.result !== undefined) {
-                                msgs.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: tc.result || (tc.success ? 'Success' : 'Failed') })
+                                msgs.push({ role: 'tool', tool_call_id: tc.id, name: tc.name, content: String(tc.result || (tc.success ? 'Success' : 'Failed')) })
                             }
                         })
                         return msgs
                     }),
-                    { role: 'user', content: userMsg.content },
+                    { role: 'user', content: promptForAPI },
                 ],
                 workspaceContext
             )
@@ -1058,17 +1319,21 @@ export function AIChatSidebar() {
     }, [isAIConfigured, getModelToUse, dispatch, processTurn, setCurrentPlan])
 
     const handleSend = useCallback(() => {
-        const prompt = input.trim()
+        const trimmed = input.trim()
+        const tagLabels = attachedContexts.map(c => c.label).join(' ')
+        const prompt = tagLabels ? `${tagLabels} ${trimmed}` : trimmed
         if (!prompt) return
 
+        const activeContexts = [...attachedContexts]
         setInput('')
+        setAttachedContexts([])
         if (isGenerating) {
             setQueuedPrompts(prev => [...prev, prompt])
             return
         }
 
-        void beginTurn(prompt, messagesRef.current)
-    }, [beginTurn, input, isGenerating])
+        void beginTurn(prompt, messagesRef.current, activeContexts)
+    }, [beginTurn, input, isGenerating, attachedContexts])
 
     useEffect(() => {
         if (isGenerating || queuedPrompts.length === 0) return
@@ -1168,46 +1433,50 @@ export function AIChatSidebar() {
     // ── Shared header ─────────────────────────────────────────────────────────
     const Header = () => (
         <div
-            className="flex items-center gap-2 px-3 h-10 shrink-0 border-b border-t border-ui-border"
+            className="flex items-center gap-2.5 px-3.5 h-11 shrink-0 border-b border-t border-ui-border"
             style={{ borderTopColor: 'var(--pane-border)' }}
         >
             {/* Icon */}
             <div
-                className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-accent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
+                className="w-6.5 h-6.5 rounded-lg flex items-center justify-center shrink-0 text-accent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)]"
             >
-                <Codicon name="sparkle" style={{ fontSize: 11, color: 'var(--accent)' }} />
+                <Codicon name="sparkle" style={{ fontSize: 12, color: 'var(--accent)' }} />
             </div>
 
-            {/* Provider + model */}
-            <div className="flex flex-col leading-none min-w-0">
-                <span className="text-[10px] font-bold tracking-widest uppercase text-ui-fg">{providerInfo.provider}</span>
-                <span className="text-[9px] text-ui-fg-muted opacity-50 truncate max-w-[90px]">{providerInfo.model}</span>
+            {/* Agent + model */}
+            <div className="flex flex-col leading-tight min-w-0">
+                <span className="text-[12px] font-bold tracking-wide text-ui-fg">
+                    Cursor Agent
+                </span>
+                <span className="text-[11px] text-ui-fg-muted opacity-80 truncate max-w-[140px]" title={providerInfo.model}>
+                    {providerInfo.model}
+                </span>
             </div>
 
             {/* Active file chip */}
             {activeFileName && (
-                <div className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-ui-border bg-ui-bg-elevated text-[10px] text-ui-fg-muted max-w-[110px] overflow-hidden">
-                    <Codicon name="file" style={{ fontSize: 9 }} />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-ui-border bg-ui-bg-elevated text-[11px] text-ui-fg-muted max-w-[120px] overflow-hidden">
+                    <Codicon name="file" style={{ fontSize: 10 }} />
                     <span className="truncate">{activeFileName}</span>
                 </div>
             )}
 
-            <div className="flex items-center gap-0.5 ml-auto">
+            <div className="flex items-center gap-1 ml-auto">
                 {messages.length > 0 && (
                     <button
-                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
+                        className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
                         onClick={handleClearChat}
                         title="New chat"
                     >
-                        <Codicon name="add" style={{ fontSize: 11 }} />
+                        <Codicon name="add" style={{ fontSize: 12 }} />
                     </button>
                 )}
                 <button
-                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
+                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-ui-hover text-ui-fg-muted hover:text-ui-fg transition-colors"
                     onClick={handleClose}
                     title="Close (⌘L)"
                 >
-                    <Codicon name="close" style={{ fontSize: 12 }} />
+                    <Codicon name="close" style={{ fontSize: 13 }} />
                 </button>
             </div>
         </div>
@@ -1219,7 +1488,7 @@ export function AIChatSidebar() {
             <div className="ai-sidebar flex flex-col h-full w-full bg-sidebar">
                 <Header />
                 <div className="flex-1 flex items-center justify-center p-6">
-                    <div className="flex flex-col items-center text-center gap-3 max-w-[240px] relative">
+                    <div className="flex flex-col items-center text-center gap-3 max-w-[260px] relative">
                         <div
                             className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-28 rounded-full pointer-events-none animate-glow-pulse"
                             style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 18%, transparent) 0%, transparent 70%)' }}
@@ -1229,12 +1498,12 @@ export function AIChatSidebar() {
                         >
                             <Codicon name="sparkle" style={{ fontSize: 26, color: 'var(--accent)' }} />
                         </div>
-                        <p className="text-sm font-bold text-ui-fg -tracking-wide">AI Not Configured</p>
-                        <p className="text-[11px] text-ui-fg-muted opacity-60 leading-snug">
+                        <p className="text-base font-bold text-ui-fg -tracking-wide">AI Not Configured</p>
+                        <p className="text-[12px] text-ui-fg-muted opacity-75 leading-relaxed">
                             Connect an AI provider to start your agentic coding session.
                         </p>
                         <button
-                            className="mt-1 px-5 py-2 bg-accent text-white text-[12px] font-semibold rounded-md hover:opacity-90 hover:-translate-y-px transition-all"
+                            className="mt-1 px-5 py-2 bg-accent text-white text-[13px] font-semibold rounded-md hover:opacity-90 hover:-translate-y-px transition-all"
                             onClick={handleConfigureAI}
                         >
                             Configure AI Provider
@@ -1252,8 +1521,8 @@ export function AIChatSidebar() {
     const genStatusText = runningToolName
         ? `Running ${runningToolName}…`
         : streamingSegments.some(s => s.type === 'tools')
-            ? 'Analyzing…'
-            : 'Generating…'
+            ? 'Analyzing workspace…'
+            : 'Generating response…'
 
     return (
         <div className="ai-sidebar flex flex-col h-full w-full bg-sidebar">
@@ -1266,7 +1535,7 @@ export function AIChatSidebar() {
             >
                 {/* Empty state */}
                 {messages.length === 0 && (
-                    <div className="flex flex-col items-center text-center gap-3 my-auto max-w-[260px] mx-auto relative py-8">
+                    <div className="flex flex-col items-center text-center gap-3.5 my-auto max-w-[280px] mx-auto relative py-8">
                         <div
                             className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full pointer-events-none animate-glow-pulse"
                             style={{ background: 'radial-gradient(circle, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 70%)' }}
@@ -1277,19 +1546,19 @@ export function AIChatSidebar() {
                             <Codicon name="sparkle" style={{ fontSize: 26, color: 'var(--accent)' }} />
                         </div>
                         <div className="relative z-10">
-                            <p className="text-[14px] font-bold text-ui-fg -tracking-wide mb-1">AI Assistant</p>
-                            <p className="text-[11px] text-ui-fg-muted opacity-60 leading-snug">
-                                Reads files, runs commands, edits code, and thinks through complex multi-file tasks.
+                            <p className="text-[15px] font-bold text-ui-fg -tracking-wide mb-1">Cursor Agent</p>
+                            <p className="text-[12px] text-ui-fg-muted opacity-75 leading-relaxed">
+                                Reads files, runs terminal commands, edits code, and thinks through complex multi-file tasks.
                             </p>
                         </div>
-                        <div className="flex flex-col gap-1 w-full mt-1">
+                        <div className="flex flex-col gap-1.5 w-full mt-1">
                             {QUICK_PROMPTS.map(({ label, icon }) => (
                                 <button
                                     key={label}
-                                    className="flex items-center gap-2 text-left px-3 py-2 rounded-md border border-ui-border bg-ui-bg-elevated text-[11px] text-ui-fg hover:border-accent hover:text-accent hover:translate-x-1 hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] transition-all"
+                                    className="flex items-center gap-2.5 text-left px-3.5 py-2.5 rounded-lg border border-ui-border bg-ui-bg-elevated text-[12px] font-medium text-ui-fg hover:border-accent hover:text-accent hover:translate-x-1 hover:bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] transition-all"
                                     onClick={() => { setInput(label); setTimeout(() => textareaRef.current?.focus(), 50) }}
                                 >
-                                    <Codicon name={icon} style={{ fontSize: 11, opacity: 0.65 }} />
+                                    <Codicon name={icon} style={{ fontSize: 12, opacity: 0.7 }} />
                                     {label}
                                 </button>
                             ))}
@@ -1333,20 +1602,12 @@ export function AIChatSidebar() {
 
             {/* Input */}
             <div className="shrink-0 border-t border-ui-border">
-                {/* Progress bar */}
-                {isGenerating && (
-                    <div className="h-px w-full overflow-hidden bg-ui-bg-elevated">
-                        <div
-                            className="h-full w-2/5 rounded-full animate-progress bg-accent opacity-70"
-                        />
-                    </div>
-                )}
                 {queuedPrompts.length > 0 && (
                     <div className="border-b border-ui-border bg-sidebar px-3 py-2">
                         <div className="max-h-28 overflow-y-auto rounded-lg border border-ui-border bg-sidebar p-2">
                             <div className="flex flex-col gap-1.5">
                                 {queuedPrompts.map((prompt, index) => (
-                                    <div key={`${prompt}-${index}`} className="flex items-start gap-2 text-[11px] leading-relaxed text-ui-fg-muted">
+                                    <div key={`${prompt}-${index}`} className="flex items-start gap-2 text-[12px] leading-relaxed text-ui-fg-muted">
                                         <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full border border-ui-border" />
                                         <span>{prompt}</span>
                                     </div>
@@ -1355,59 +1616,113 @@ export function AIChatSidebar() {
                         </div>
                     </div>
                 )}
-                <div className="p-3">
+                <div className="p-3 relative">
+                    {/* `@` Mention Autocomplete Floating Popup */}
+                    {showMentionPopup && mentionResults.length > 0 && (
+                        <div className="absolute bottom-full mb-2.5 left-3 right-3 z-50 rounded-xl border border-ui-border bg-sidebar shadow-2xl overflow-hidden max-h-[260px] flex flex-col animate-in fade-in duration-100">
+                            <div className="px-3 py-1.5 border-b border-ui-border text-[10px] font-bold text-ui-fg-muted uppercase tracking-wider bg-ui-bg-elevated flex items-center justify-between">
+                                <span>Context Mentions (@)</span>
+                                <span className="opacity-70 font-normal">↑↓ to navigate · Enter to select</span>
+                            </div>
+                            <div className="overflow-y-auto p-1 flex flex-col gap-0.5 max-h-[220px]">
+                                {mentionResults.map((item, idx) => (
+                                    <div
+                                        key={item.id}
+                                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                                            idx === mentionIndex ? 'bg-ui-hover text-ui-fg mention-item--selected' : 'text-ui-fg-muted hover:text-ui-fg hover:bg-ui-hover'
+                                        }`}
+                                        onClick={() => selectMentionItem(item)}
+                                    >
+                                        <Codicon name={item.icon} style={{ fontSize: 13, color: 'var(--accent)' }} />
+                                        <div className="flex flex-col min-w-0 leading-tight">
+                                            <span className="text-[12px] font-medium text-ui-fg truncate">{item.label}</span>
+                                            <span className="text-[10px] text-ui-fg-muted truncate opacity-70">{item.desc}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     <div
                         className="rounded-xl overflow-hidden border border-ui-border transition-colors focus-within:border-ui-border"
                         style={{ background: 'var(--sidebar-bg)' }}
                     >
+                        {/* Attached Context Chips */}
+                        {attachedContexts.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1.5 px-3.5 pt-2.5">
+                                {attachedContexts.map(tag => (
+                                    <div
+                                        key={tag.id}
+                                        className="flex items-center gap-1 px-2 py-0.5 rounded-md border border-ui-border bg-ui-bg-elevated text-[11px] font-medium text-ui-fg"
+                                    >
+                                        <Codicon name={tag.icon} style={{ fontSize: 10, color: 'var(--accent)' }} />
+                                        <span>{tag.label}</span>
+                                        <button
+                                            className="ml-1 hover:text-danger opacity-60 hover:opacity-100 transition-opacity"
+                                            onClick={() => setAttachedContexts(prev => prev.filter(t => t.id !== tag.id))}
+                                            title="Remove tag"
+                                        >
+                                            <Codicon name="close" style={{ fontSize: 9 }} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         <textarea
                             ref={textareaRef}
                             value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={isGenerating ? 'Type the next prompt…' : 'Ask anything… (Shift+Enter for new line)'}
+                            onChange={handleInputChange}
+                            onKeyDown={handleTextareaKeyDown}
+                            placeholder={isGenerating ? 'Type the next prompt…' : 'Ask anything… Type @ to tag files, git, or codebase'}
                             rows={1}
-                            className="w-full min-h-[58px] bg-transparent text-ui-fg text-[13px] font-mono px-3.5 py-3 resize-none outline-none border-none placeholder:text-ui-fg-muted placeholder:opacity-70 max-h-[200px] leading-relaxed"
+                            className="w-full min-h-[64px] bg-transparent text-ui-fg text-[14px] font-mono px-3.5 py-3 resize-none outline-none border-none placeholder:text-ui-fg-muted placeholder:opacity-70 max-h-[200px] leading-relaxed"
                         />
-                        <div className="flex items-center justify-between gap-3 px-3 pb-3">
-                            {/* Status */}
-                            <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-                                {isGenerating && (
-                                    <div className="flex min-w-0 items-center gap-1.5 rounded-md border border-ui-border bg-sidebar px-2 py-1">
-                                        <span
-                                            className="block w-1.5 h-1.5 rounded-full bg-accent animate-live-dot shrink-0 opacity-80"
-                                        />
-                                        <span className="truncate text-[10px] text-ui-fg-muted font-medium tracking-wide">{genStatusText}</span>
-                                    </div>
-                                )}
-                                {queuedPrompts.length > 0 && (
-                                    <span className="shrink-0 rounded-md border border-ui-border bg-sidebar px-2 py-1 text-[10px] text-ui-fg-muted">
-                                        {queuedPrompts.length} queued
-                                    </span>
-                                )}
+
+                        {/* Input Footer Toolbar */}
+                        <div className="flex items-center justify-between gap-2 px-3 pb-2.5">
+                            {/* Left: Model & Attach Image */}
+                            <div className="flex items-center gap-2 text-ui-fg-muted text-[11px]">
+                                <button
+                                    className="flex items-center gap-1 px-2 py-1 rounded-md text-ui-fg-muted hover:text-ui-fg hover:bg-ui-hover transition-colors cursor-pointer"
+                                    onClick={() => imageInputRef.current?.click()}
+                                    title="Attach image or file"
+                                >
+                                    <Codicon name="file-media" style={{ fontSize: 11, color: 'var(--accent)' }} />
+                                    <span>Attach</span>
+                                </button>
+                                <input
+                                    ref={imageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleImageUpload}
+                                />
                             </div>
-                            {/* Actions */}
-                            <div className="flex shrink-0 items-center gap-1.5">
+
+                            {/* Right: Actions */}
+                            <div className="flex shrink-0 items-center gap-1.5 ml-auto">
                                 {isGenerating && (
                                     <button
                                         onClick={handleStopGeneration}
-                                        className="w-8 h-8 flex items-center justify-center rounded-md border border-ui-border bg-transparent text-danger hover:bg-[color-mix(in_srgb,var(--color-error)_10%,transparent)] transition-colors"
+                                        className="w-7 h-7 flex items-center justify-center rounded-md border border-ui-border bg-transparent text-danger hover:bg-[color-mix(in_srgb,var(--color-error)_10%,transparent)] transition-colors"
                                         title="Stop generation"
                                         aria-label="Stop generation"
                                     >
-                                        <span className="h-2.5 w-2.5 rounded-full bg-current" />
+                                        <span className="h-2 w-2 rounded-full bg-current" />
                                     </button>
                                 )}
                                 <button
                                     onClick={handleSend}
-                                    disabled={!input.trim()}
-                                    className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${input.trim()
+                                    disabled={!input.trim() && attachedContexts.length === 0}
+                                    className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${input.trim() || attachedContexts.length > 0
                                         ? 'bg-accent text-white hover:opacity-85'
                                         : 'border border-ui-border text-ui-fg-muted opacity-45 cursor-not-allowed'
                                         }`}
                                     title={isGenerating ? 'Queue next prompt (Enter)' : 'Send (Enter)'}
                                 >
-                                    <Codicon name="send" style={{ fontSize: 12 }} />
+                                    <Codicon name="send" style={{ fontSize: 11 }} />
                                 </button>
                             </div>
                         </div>

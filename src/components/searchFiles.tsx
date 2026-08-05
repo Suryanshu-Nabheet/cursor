@@ -117,9 +117,13 @@ export default function SearchFiles() {
         } catch { /* ignore */ }
     }
 
+    const folders = useAppSelector(getRootPath)
+    const welcomeDismissed = useAppSelector((state: any) => state.global.welcomeDismissed)
+    const isWelcomeScreen = (!folders || folders === '') && !welcomeDismissed
+
     const displayedResults = query ? results : recentFiles.length > 0 ? recentFiles.slice(0, 8) : results
 
-    if (!showFileSearch) return null
+    if (!showFileSearch || isWelcomeScreen) return null
 
     return (
         <>

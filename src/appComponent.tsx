@@ -56,6 +56,11 @@ export function App() {
     )
     const commandBarOpen = useAppSelector(csel.getIsCommandBarOpen)
 
+    const screenState =
+        Object.keys(folders as object).length <= 1 && !welcomeDismissed
+            ? 'welcome'
+            : 'normal'
+
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
             const isControl = connector.PLATFORM_CM_KEY === 'Ctrl'
@@ -75,8 +80,9 @@ export function App() {
                     return
                 }
 
-                // Cmd+Shift+P - Command Palette
+                // Cmd+Shift+P - Command Palette (blocked on welcome screen)
                 if (e.key.toLowerCase() === 'p' && e.shiftKey) {
+                    if (screenState === 'welcome') return
                     if (!commandPaletteOpen) {
                         e.preventDefault()
                         e.stopPropagation()
@@ -85,8 +91,9 @@ export function App() {
                     return
                 }
 
-                // Cmd+P - Quick Open (file search)
+                // Cmd+P - Quick Open / File Search (blocked on welcome screen)
                 if (e.key === 'p' && !e.shiftKey) {
+                    if (screenState === 'welcome') return
                     e.preventDefault()
                     e.stopPropagation()
                     dispatch(ts.triggerFileSearch())
@@ -193,7 +200,7 @@ export function App() {
                 }
             }
         },
-        [dispatch, commandBarOpen, commandPaletteOpen]
+        [dispatch, commandBarOpen, commandPaletteOpen, screenState]
     )
 
     useEffect(() => {
@@ -215,11 +222,6 @@ export function App() {
     useEffect(() => {
         dispatch(initializeExtensions())
     }, [dispatch])
-
-    const screenState =
-        Object.keys(folders as object).length <= 1 && !welcomeDismissed
-            ? 'welcome'
-            : 'normal'
 
     const [dragging, setDragging] = useState(false)
     const [leftSideWidth, setLeftSideWidth] = useState(300)

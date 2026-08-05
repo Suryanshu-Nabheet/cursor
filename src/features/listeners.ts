@@ -82,10 +82,20 @@ connector.registerZoom((zoom: number) => {
 connector.registerSearch(() => store.dispatch(ts.openSearch()))
 
 // @ts-ignore
-connector.registerFileSearch(() => store.dispatch(ts.triggerFileSearch()))
+connector.registerFileSearch(() => {
+    const state = store.getState()
+    const welcomeDismissed = state.global.welcomeDismissed
+    const foldersCount = Object.keys(state.global.folders || {}).length
+    if (foldersCount <= 1 && !welcomeDismissed) return
+    store.dispatch(ts.triggerFileSearch())
+})
 
 // @ts-ignore
 connector.registerCommandPalette(() => {
+    const state = store.getState()
+    const welcomeDismissed = state.global.welcomeDismissed
+    const foldersCount = Object.keys(state.global.folders || {}).length
+    if (foldersCount <= 1 && !welcomeDismissed) return
     store.dispatch(ts.triggerCommandPalette())
 })
 

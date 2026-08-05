@@ -280,10 +280,16 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 export default function CommandPalettes() {
     const dispatch = useAppDispatch()
     const commandPaletteTriggeredFocus = useAppSelector(commandPaletteTriggeredSelector)
+    const rootPath = useAppSelector((state: any) => state.global?.rootPath)
+    const welcomeDismissed = useAppSelector((state: any) => state.global?.welcomeDismissed)
+    const isWelcomeScreen = (!rootPath || rootPath === '') && !welcomeDismissed
+
     const commandPaletteCloseTrigger = useCallback(
         () => dispatch(untriggerCommandPalette()),
         [dispatch]
     )
+
+    if (isWelcomeScreen) return null
 
     return (
         <>
