@@ -4,9 +4,22 @@ import { promisify } from 'util'
 import * as fs from 'fs'
 import * as path from 'path'
 import { PLATFORM_INFO, rgLoc } from './utils'
+import { store } from './storeHandler'
 
 // Helper to check if rg exists
 const hasRg = fs.existsSync(rgLoc)
+
+export const resolveProjectRoot = (rootPath?: string): string => {
+    if (rootPath && typeof rootPath === 'string' && rootPath.trim() !== '' && fs.existsSync(rootPath)) {
+        return rootPath
+    }
+    const projectPathObj = store.get('projectPath') as any
+    const savedRoot = typeof projectPathObj === 'string' ? projectPathObj : projectPathObj?.defaultFolder
+    if (savedRoot && typeof savedRoot === 'string' && fs.existsSync(savedRoot)) {
+        return savedRoot
+    }
+    return rootPath || ''
+}
 
 const searchRipGrep = async (
     event: IpcMainInvokeEvent,
@@ -19,14 +32,22 @@ const searchRipGrep = async (
         useRegex?: boolean
     }
 ) => {
+    const effectiveRoot = resolveProjectRoot(arg.rootPath)
+    if (!effectiveRoot) {
+        return []
+    }
+    const effectiveArg = { ...arg, rootPath: effectiveRoot }
     if (hasRg) {
-        return searchWithRg(arg)
+        return searchWithRg(effectiveArg)
     } else {
-        return searchWithGrep(arg)
+        return searchWithGrep(effectiveArg)
     }
 }
 
 const searchWithRg = async (arg: any) => {
+    if (!arg.rootPath) {
+        return []
+    }
     const cmd = ['--json', '--line-number', '--with-filename', '--sort-files']
     if (arg.caseSensitive) {
         cmd.push('--case-sensitive')
@@ -237,22 +258,26 @@ const searchFilesName = async (
         topResults?: number
     }
 ) => {
+    const effectiveRoot = resolveProjectRoot(rootPath)
+    if (!effectiveRoot) {
+        return []
+    }
     // Robust find command
     // Use 'find' on unix, fallback to basic recursive search if needed
     // But find is standard on Mac/Linux
 
     // Construct command to exclude standard ignored dirs
     const excludes = "-not -path '*/.*' -not -path '*/node_modules/*'"
-    const cmd = `find "${rootPath}" ${excludes} -type f -iname "*${query}*" | head -n ${topResults}`
+    const cmd = `find "${effectiveRoot}" ${excludes} -type f -iname "*${query}*" | head -n ${topResults}`
 
     try {
-        const { stdout } = await promisify(cp.exec)(cmd, { cwd: rootPath })
+        const { stdout } = await promisify(cp.exec)(cmd, { cwd: effectiveRoot })
         return stdout
             .split('\n')
             .map((s: string) => {
-                // Ensure paths are relative if they start with rootPath
-                if (s.startsWith(rootPath)) {
-                    return path.relative(rootPath, s)
+                // Ensure paths are relative if they start with effectiveRoot
+                if (s.startsWith(effectiveRoot)) {
+                    return path.relative(effectiveRoot, s)
                 }
                 return s
             })
@@ -290,10 +315,13 @@ const searchFilesPathGit = async (
         topResults?: number
     }
 ) => {
-    if (await doesCommandSucceed('git ls-files', rootPath)) {
+    const effectiveRoot = resolveProjectRoot(rootPath)
+    if (!effectiveRoot) return []
+
+    if (await doesCommandSucceed('git ls-files', effectiveRoot)) {
         const cmd = `git ls-files | grep "${query}" | head -n ${topResults}`
         try {
-            const { stdout } = await promisify(cp.exec)(cmd, { cwd: rootPath })
+            const { stdout } = await promisify(cp.exec)(cmd, { cwd: effectiveRoot })
             return stdout
                 .split('\n')
                 .map((l) => {
@@ -304,7 +332,7 @@ const searchFilesPathGit = async (
             // ignore errors
         }
     }
-    return await searchFilesPath(event, { query, rootPath, topResults })
+    return await searchFilesPath(event, { query, rootPath: effectiveRoot, topResults })
 }
 
 const doesCommandSucceed = async (cmd: string, rootPath: string) => {
@@ -328,11 +356,14 @@ const searchFilesNameGit = async (
         topResults?: number
     }
 ) => {
-    if (await doesCommandSucceed('git ls-files', rootPath)) {
+    const effectiveRoot = resolveProjectRoot(rootPath)
+    if (!effectiveRoot) return []
+
+    if (await doesCommandSucceed('git ls-files', effectiveRoot)) {
         // Safe grep to avoid hanging on large outputs
         const cmd = `git ls-files | grep -i "${query}" | grep -v "^node_modules/" | head -n ${topResults}`
         try {
-            const { stdout } = await promisify(cp.exec)(cmd, { cwd: rootPath })
+            const { stdout } = await promisify(cp.exec)(cmd, { cwd: effectiveRoot })
             return stdout
                 .split('\n')
                 .map((l) => {
@@ -343,7 +374,7 @@ const searchFilesNameGit = async (
             // ignore
         }
     }
-    return await searchFilesName(event, { query, rootPath, topResults })
+    return await searchFilesName(event, { query, rootPath: effectiveRoot, topResults })
 }
 
 export const setupSearch = () => {

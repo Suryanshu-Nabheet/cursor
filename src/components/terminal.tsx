@@ -148,15 +148,43 @@ export const BottomTerminal: React.FC = () => {
 
         term.open(session.containerRef.current)
 
+        // Allow global IDE shortcuts (Cmd+J, Cmd+L, Cmd+`, Cmd+P, etc.) to pass through xterm
+        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+            const isCmdOrCtrl = e.metaKey || e.ctrlKey
+            if (isCmdOrCtrl) {
+                const key = e.key.toLowerCase()
+                if (
+                    key === 'j' ||
+                    key === '`' ||
+                    key === 'l' ||
+                    key === 'b' ||
+                    key === 'p' ||
+                    key === 'k' ||
+                    key === 'e' ||
+                    key === 'f' ||
+                    key === ',' ||
+                    e.code === 'KeyJ' ||
+                    e.code === 'Backquote' ||
+                    e.code === 'KeyL'
+                ) {
+                    return false
+                }
+            }
+            return true
+        })
+
         // Assign to session
         session.terminalInstance = term
         session.fitAddon = fitAddon
 
         try {
+            const projectRoot =
+                rootPath ||
+                (await connector.getProject().catch(() => null))?.defaultFolder
             const result: { id: string } = await connector.terminalCreate(
                 80,
                 24,
-                rootPath || undefined
+                projectRoot || undefined
             )
             if (session.disposed) {
                 await connector.terminalKill(result.id)
@@ -296,16 +324,6 @@ export const BottomTerminal: React.FC = () => {
         })
     }, [settings, availableThemes, getTerminalTheme])
 
-    // Keyboard shortcut Ctrl+`
-    useEffect(() => {
-        const handleKey = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.key === '`') {
-                dispatch(gs.toggleTerminal())
-            }
-        }
-        window.addEventListener('keydown', handleKey)
-        return () => window.removeEventListener('keydown', handleKey)
-    }, [dispatch])
 
     // Drag resize
     useEffect(() => {

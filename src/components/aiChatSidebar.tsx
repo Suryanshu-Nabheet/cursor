@@ -9,8 +9,8 @@ import { useAppDispatch, useAppSelector } from '../app/hooks'
 import { Codicon } from './codicon'
 import * as ts from '../features/tools/toolSlice'
 import { getActiveProviderAPIKey } from '../features/ai/apiKeyUtils'
-import { streamAIResponseWithTools } from '../features/ai/providersWithTools'
-import { AI_TOOLS, executeToolCall } from '../features/ai/tools'
+import { streamAIResponseWithTools, extractJsonToolCalls } from '../features/ai/providersWithTools'
+import { AI_TOOLS, executeToolCall, isExternalPathAction, isRiskyTerminalCommand } from '../features/ai/tools'
 import { buildWorkspaceContext, injectWorkspaceContext } from '../features/ai/workspaceContext'
 import { store } from '../app/store'
 import { openFile, fileWasUpdated } from '../features/globalSlice'
@@ -46,6 +46,7 @@ interface ToolCallState {
     isExecuting: boolean
     isPending?: boolean
     needsApproval?: boolean
+    warning?: string
 }
 
 type StreamPhase = 'idle' | 'streaming' | 'tools' | 'executing'
@@ -301,6 +302,7 @@ function ToolCallsGroup({
                             isExecuting={tc.isExecuting}
                             isPending={tc.isPending}
                             needsApproval={tc.needsApproval}
+                            warning={tc.warning}
                             onAccept={() => onToolApproval(tc.id, true)}
                             onReject={() => onToolApproval(tc.id, false)}
                         />
@@ -315,9 +317,12 @@ function stripSpecialTags(text: string): string {
     if (!text) return ''
     return text
         .replace(/<plan>[\s\S]*?<\/plan>/gi, '')
-        .replace(/<plan>[\s\S]*/gi, '')
+        .replace(/<plan[\s\S]*/gi, '')
         .replace(/<todos>[\s\S]*?<\/todos>/gi, '')
-        .replace(/<todos>[\s\S]*/gi, '')
+        .replace(/<todos[\s\S]*/gi, '')
+        .replace(/```(?:json)?\s*\{[\s\S]*?"(?:name|tool|function|action)"[\s\S]*?```/gi, '')
+        .replace(/```(?:json)?\s*\{[\s\S]*?"(?:name|tool|function|action)"[\s\S]*/gi, '')
+        .replace(/\{\s*"(?:name|tool|function|action)"\s*:[\s\S]*?\}/gi, '')
         .trim()
 }
 
@@ -1113,6 +1118,65 @@ export function AIChatSidebar() {
                     'Tool call did not complete. The model returned an incomplete or malformed tool request.'
                 )
 
+                // Extract any tool calls embedded in JSON text (common with local/Ollama models)
+                const { cleanText, toolCalls: extractedCalls } = extractJsonToolCalls(thisTurnText)
+                if (extractedCalls.length > 0) {
+                    thisTurnText = cleanText
+                    updateTurnText(stripSpecialTags(cleanText))
+
+                    for (const etc of extractedCalls) {
+                        if (!thisTurnToolCallIdsRef.current.has(etc.id)) {
+                            thisTurnToolCallIdsRef.current.add(etc.id)
+                            thisTurnToolCalls.push({
+                                id: etc.id,
+                                name: etc.name,
+                                arguments: etc.arguments,
+                                isExecuting: false,
+                                isPending: false,
+                            })
+                            upsertToolCall({
+                                id: etc.id,
+                                name: etc.name,
+                                arguments: etc.arguments,
+                                isExecuting: false,
+                                isPending: false,
+                            })
+                        }
+                    }
+                }
+
+                // Fallback: If model output raw code instead of a tool call when user asked to write/create a file
+                if (thisTurnToolCalls.length === 0) {
+                    const lastUserMsg = currentMessages[currentMessages.length - 1]?.content || ''
+                    const atFileMatch = lastUserMsg.match(/@([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)/)
+                    const actionFileMatch = lastUserMsg.match(
+                        /(?:write|create|edit|generate|update|code|make)\s+(?:the\s+file\s+|for\s+|in\s+)?([a-zA-Z0-9_\-./\\]+\.[a-zA-Z0-9]+)/i
+                    )
+                    const targetFile = atFileMatch?.[1] || actionFileMatch?.[1]
+
+                    if (targetFile) {
+                        const codeBlockMatch = thisTurnText.match(/```(?:[a-zA-Z0-9_-]+)?\s*\n([\s\S]*?)\n```/)
+                        if (codeBlockMatch && codeBlockMatch[1].trim()) {
+                            const codeContent = codeBlockMatch[1]
+                            const autoId = `call_autowrite_${Date.now()}`
+                            const autoToolCall = {
+                                id: autoId,
+                                name: 'write_file',
+                                arguments: { path: targetFile, content: codeContent },
+                                isExecuting: false,
+                                isPending: false,
+                            }
+                            thisTurnToolCallIdsRef.current.add(autoId)
+                            thisTurnToolCalls.push(autoToolCall)
+                            upsertToolCall(autoToolCall)
+
+                            // Strip the raw code block so the conversation remains clean
+                            thisTurnText = thisTurnText.replace(codeBlockMatch[0], '').trim()
+                            updateTurnText(stripSpecialTags(thisTurnText))
+                        }
+                    }
+                }
+
                 if (thisTurnToolCalls.length === 0) {
                     updateTurnText(stripSpecialTags(thisTurnText))
                     finalizeAssistantMessage()
@@ -1129,12 +1193,30 @@ export function AIChatSidebar() {
                 const toolResults: any[] = []
                 for (const toolCall of thisTurnToolCalls) {
                     try {
-                        // Destructive ops need approval
-                        if (['edit_file', 'delete_file', 'run_terminal_command'].includes(toolCall.name)) {
+                        // Destructive ops or actions outside the workspace/root directory or risky commands need approval
+                        const isExternal = isExternalPathAction(rootPath || '', toolCall)
+                        const isRiskyCmd =
+                            toolCall.name === 'run_terminal_command' &&
+                            isRiskyTerminalCommand(toolCall.arguments?.command)
+
+                        let warning: string | undefined = undefined
+                        if (isExternal) {
+                            warning = 'Security Guard: This action targets files/folders outside your opened project workspace. User approval is required.'
+                        } else if (isRiskyCmd) {
+                            warning = 'Security Guard: This command modifies system state or root directories. User approval is required.'
+                        }
+
+                        const requiresApproval =
+                            ['edit_file', 'delete_file', 'run_terminal_command'].includes(toolCall.name) ||
+                            isExternal ||
+                            isRiskyCmd
+
+                        if (requiresApproval) {
                             upsertToolCall({
                                 ...toolCall,
                                 needsApproval: true,
                                 isPending: false,
+                                warning,
                             })
 
                             try {

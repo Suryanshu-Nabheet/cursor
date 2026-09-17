@@ -4,6 +4,7 @@ import { ipcMain } from 'electron'
 import log from 'electron-log'
 import { randomUUID } from 'crypto'
 import fs from 'fs'
+import { store } from './storeHandler'
 import {
     clampTerminalSize,
     isAllowedShell,
@@ -57,7 +58,21 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
         requestRootPath?: string,
         requestedShell?: string
     ) => {
-        const cwd = resolveTerminalCwd(requestRootPath, rootPath)
+        let dynamicProjectRoot: string | undefined
+        try {
+            const projectPathObj = store.get('projectPath')
+            if (
+                typeof projectPathObj === 'object' &&
+                projectPathObj !== null &&
+                'defaultFolder' in projectPathObj &&
+                typeof (projectPathObj as any).defaultFolder === 'string'
+            ) {
+                dynamicProjectRoot = (projectPathObj as any).defaultFolder
+            }
+        } catch {
+            /* ignore */
+        }
+        const cwd = resolveTerminalCwd(requestRootPath, dynamicProjectRoot || rootPath)
         const size = clampTerminalSize(cols, rows)
 
         let shellToUse =

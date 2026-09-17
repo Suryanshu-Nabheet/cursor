@@ -20,6 +20,98 @@ export interface AITool {
     }
 }
 
+export const resolveWorkspacePath = (
+    rootPath: string,
+    targetPath: string
+): { fullPath: string; isInsideWorkspace: boolean } => {
+    if (!rootPath) {
+        return { fullPath: targetPath, isInsideWorkspace: false }
+    }
+
+    const cleanRoot = rootPath.replace(/[/\\]+$/, '')
+    const isAbsolute =
+        targetPath.startsWith('/') ||
+        /^[a-zA-Z]:[/\\]/.test(targetPath)
+
+    let candidate: string
+    if (isAbsolute) {
+        const isWin = /^[a-zA-Z]:[/\\]/.test(targetPath)
+        const prefix = isWin ? targetPath.slice(0, 2) : ''
+        const rest = isWin ? targetPath.slice(2) : targetPath
+        const parts = rest.split(/[/\\]+/).filter(Boolean)
+        const stack: string[] = []
+        for (const p of parts) {
+            if (p === '.') continue
+            if (p === '..') {
+                stack.pop()
+            } else {
+                stack.push(p)
+            }
+        }
+        candidate = prefix + '/' + stack.join('/')
+    } else {
+        const isWin = /^[a-zA-Z]:[/\\]/.test(cleanRoot)
+        const prefix = isWin ? cleanRoot.slice(0, 2) : ''
+        const rest = isWin ? cleanRoot.slice(2) : cleanRoot
+        const rootParts = rest.split(/[/\\]+/).filter(Boolean)
+        const targetParts = targetPath.split(/[/\\]+/).filter(Boolean)
+        const stack = [...rootParts]
+        for (const p of targetParts) {
+            if (p === '.') continue
+            if (p === '..') {
+                stack.pop()
+            } else {
+                stack.push(p)
+            }
+        }
+        candidate = prefix + '/' + stack.join('/')
+    }
+
+    const normalizedCandidate = candidate.replace(/\\/g, '/')
+    const normalizedRoot = cleanRoot.replace(/\\/g, '/')
+    const isInsideWorkspace =
+        normalizedCandidate === normalizedRoot ||
+        normalizedCandidate.startsWith(normalizedRoot + '/')
+
+    return {
+        fullPath: isInsideWorkspace ? normalizedCandidate : candidate,
+        isInsideWorkspace,
+    }
+}
+
+export function isExternalPathAction(
+    rootPath: string,
+    toolCall: { name: string; arguments?: Record<string, any>; id?: string }
+): boolean {
+    if (!rootPath) return true
+    const pathArg =
+        toolCall.arguments?.path ||
+        toolCall.arguments?.TargetPath ||
+        toolCall.arguments?.TargetFile
+    if (typeof pathArg === 'string' && pathArg.trim()) {
+        const { isInsideWorkspace } = resolveWorkspacePath(
+            rootPath,
+            pathArg.trim()
+        )
+        if (!isInsideWorkspace) {
+            return true
+        }
+    }
+    return false
+}
+
+export function isRiskyTerminalCommand(command: string): boolean {
+    const trimmed = (command || '').trim()
+    if (!trimmed) return false
+    if (/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f*|-f[a-zA-Z]*r[a-zA-Z]*)\s+[/~]/i.test(trimmed)) return true
+    if (/\bsudo\b/i.test(trimmed)) return true
+    if (/\b(mkfs|dd\s+if=)/i.test(trimmed)) return true
+    if (/\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?(777|a\+[rwx]+)\s+[/~]/i.test(trimmed)) return true
+    if (/\b(shutdown|reboot)\b/i.test(trimmed)) return true
+    if (/:\(\)\s*\{\s*:\|:&\s*\};:/i.test(trimmed)) return true
+    return false
+}
+
 const pathJoin = (...args: string[]) => {
     return args
         .map((part, i) => {
@@ -34,7 +126,7 @@ const pathJoin = (...args: string[]) => {
 }
 
 export interface ToolCall {
-    id: string
+    id?: string
     name: string
     arguments: Record<string, any>
 }
@@ -247,16 +339,18 @@ export async function executeToolCall(
             actions,
             options
         )
+        const callId = toolCall.id || `call_${Date.now()}`
         return {
-            id: toolCall.id,
+            id: callId,
             name: toolCall.name,
             result,
             success: true,
         }
     } catch (error: any) {
         const errorMessage = error.message || 'Unknown error'
+        const callId = toolCall.id || `call_${Date.now()}`
         return {
-            id: toolCall.id,
+            id: callId,
             name: toolCall.name,
             result: `Error: ${errorMessage}`,
             success: false,
@@ -369,7 +463,7 @@ async function executeTool(
 
     switch (name) {
         case 'read_file': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
             const content = await connector.getFile(fullPath)
             if (content === null || content === undefined) {
                 throw new Error(`Could not read file ${args.path}`)
@@ -378,7 +472,17 @@ async function executeTool(
         }
 
         case 'write_file': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
+
+            // Ensure parent directory exists before saving
+            const parentDir = fullPath.substring(0, fullPath.lastIndexOf('/'))
+            if (parentDir && parentDir !== rootPath.replace(/[/\\]+$/, '')) {
+                try {
+                    await connector.saveFolder(parentDir)
+                } catch {
+                    /* ignore if directory already exists */
+                }
+            }
 
             // 1. Create empty file first (so it exists)
             await connector.saveFile(fullPath, '')
@@ -405,7 +509,7 @@ async function executeTool(
         }
 
         case 'edit_file': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
             const content = await connector.getFile(fullPath)
 
             if (!content) {
@@ -414,15 +518,30 @@ async function executeTool(
                 )
             }
 
-            if (!content.includes(args.oldText)) {
-                // Simple fuzzy matching or fallback?
-                // For now, strict check, but give helpful error
+            let matchFound = content.includes(args.oldText)
+            let newContent = ''
+
+            if (matchFound) {
+                newContent = content.replace(args.oldText, args.newText)
+            } else {
+                // Fallback normalization of line-endings and whitespace
+                const normContent = content.replace(/\r\n/g, '\n')
+                const normOldText = args.oldText.replace(/\r\n/g, '\n')
+                if (normContent.includes(normOldText)) {
+                    newContent = normContent.replace(
+                        normOldText,
+                        args.newText.replace(/\r\n/g, '\n')
+                    )
+                    matchFound = true
+                }
+            }
+
+            if (!matchFound) {
                 throw new Error(
                     `Could not find the specified text in ${args.path}. Please read the file again to ensure you have the exact content.`
                 )
             }
 
-            const newContent = content.replace(args.oldText, args.newText)
             await connector.saveFile(fullPath, newContent)
 
             // Force update UI
@@ -434,7 +553,7 @@ async function executeTool(
         }
 
         case 'list_files': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
             const { files, folders } = await connector.getFolder(
                 fullPath,
                 [],
@@ -455,15 +574,23 @@ async function executeTool(
         }
 
         case 'create_directory': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
             await connector.saveFolder(fullPath)
             return `Created directory ${args.path}`
         }
 
         case 'delete_file': {
-            const fullPath = pathJoin(rootPath, args.path)
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
             await connector.deleteFile(fullPath)
             return `Deleted ${args.path}`
+        }
+
+        case 'open_file': {
+            const { fullPath } = resolveWorkspacePath(rootPath, args.path)
+            if (dispatch && actions?.openFile) {
+                await dispatch(actions.openFile({ filePath: fullPath }))
+            }
+            return `Opened ${args.path}`
         }
 
         case 'run_terminal_command': {

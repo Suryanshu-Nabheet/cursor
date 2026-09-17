@@ -2,6 +2,7 @@
  * Agentic AI inline completion — FIM-style, provider-aware, context-rich.
  */
 import { EditorView } from '@codemirror/view'
+import { indentUnit } from '@codemirror/language'
 import { getActiveProviderAPIKey } from './apiKeyUtils'
 import { streamAIResponse, AIProviderConfig, AIProvider } from './providers'
 import {
@@ -22,6 +23,7 @@ export interface InlineCompletionContext {
     cursorOffset: number
     linePrefix: string
     indent: string
+    indentUnit?: string
 }
 
 export type InlineCompletionMode = 'fast' | 'agentic'
@@ -133,6 +135,16 @@ export function extractInlineCompletionContext(
     const language = getLanguageFromFilename(path)
     if (language === 'plaintext' && !path.includes('.')) return null
 
+    let indentUnitStr = '    '
+    try {
+        const unit = state.facet(indentUnit)
+        if (typeof unit === 'string' && unit.length > 0) {
+            indentUnitStr = unit
+        }
+    } catch {
+        // fallback to 4 spaces
+    }
+
     return {
         prefix,
         suffix,
@@ -141,13 +153,193 @@ export function extractInlineCompletionContext(
         cursorOffset: pos,
         linePrefix,
         indent,
+        indentUnit: indentUnitStr,
     }
 }
 
-/** Light sanitization — keeps partial stream visible; only strips obvious junk */
+export function getLeadingWhitespace(line: string): string {
+    const match = line.match(/^([ \t]*)/)
+    return match ? match[1] : ''
+}
+
+/**
+ * Strips prefix text already typed on the current line.
+ * Handles exact line prefix, trimmed line prefix, indent-only lines,
+ * and trailing tokens at cursor.
+ */
+export function stripAlreadyTypedPrefix(
+    text: string,
+    context: InlineCompletionContext
+): string {
+    if (!text) return ''
+
+    // If cursor is on an empty indented line (context.linePrefix === context.indent)
+    const isEmptyIndentedLine =
+        context.indent.length > 0 && context.linePrefix === context.indent
+
+    if (isEmptyIndentedLine) {
+        if (text.startsWith(context.indent)) {
+            text = text.slice(context.indent.length)
+        }
+        return text
+    }
+
+    const trimmedLinePrefix = context.linePrefix.trim()
+    const linePrefixWithoutIndent = context.linePrefix.slice(context.indent.length)
+
+    if (context.linePrefix.length > 0 && text.startsWith(context.linePrefix)) {
+        return text.slice(context.linePrefix.length)
+    }
+
+    if (
+        linePrefixWithoutIndent.length > 0 &&
+        text.startsWith(linePrefixWithoutIndent)
+    ) {
+        return text.slice(linePrefixWithoutIndent.length)
+    }
+
+    if (trimmedLinePrefix.length > 0 && text.startsWith(trimmedLinePrefix)) {
+        return text.slice(trimmedLinePrefix.length)
+    }
+
+    // Match partial token at cursor (e.g. user typed "ret" and model returned "return 0;")
+    const lastTokenMatch = context.linePrefix.match(/[A-Za-z0-9_$]+$/)
+    if (lastTokenMatch) {
+        const token = lastTokenMatch[0]
+        if (text.startsWith(token)) {
+            return text.slice(token.length)
+        }
+    }
+
+    return text
+}
+
+/**
+ * Re-bases multi-line completion indentation so lines 1..N-1 align with
+ * the document's base indentation and indent unit.
+ */
+export function countOccurrences(str: string, char: string): number {
+    let count = 0
+    for (let i = 0; i < str.length; i++) {
+        if (str[i] === char) count++
+    }
+    return count
+}
+
+/**
+ * Re-bases multi-line completion indentation so lines 1..N-1 align with
+ * the document's base indentation and indent unit.
+ */
+export function rebaseMultiLineIndentation(
+    text: string,
+    baseIndent: string,
+    indentUnitStr = '    '
+): string {
+    const lines = text.split('\n')
+    if (lines.length <= 1) return text
+
+    const subsequentLines = lines.slice(1)
+    const nonEmptySubsequent = subsequentLines.filter(l => l.trim().length > 0)
+    if (nonEmptySubsequent.length === 0) return text
+
+    const indents = nonEmptySubsequent.map(l => getLeadingWhitespace(l))
+    const minIndentLen = Math.min(...indents.map(ind => ind.length))
+
+    // Detect whether model used 2-space or 4-space indentation steps
+    const diffs = indents
+        .map(i => i.length - minIndentLen)
+        .filter(d => d > 0)
+    const step =
+        diffs.length > 0 && Math.min(...diffs) <= 2
+            ? 2
+            : diffs.length > 0
+            ? Math.min(...diffs)
+            : 4
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]
+        if (!line.trim()) {
+            lines[i] = ''
+            continue
+        }
+
+        const currentLeading = getLeadingWhitespace(line)
+        const relLen = Math.max(0, currentLeading.length - minIndentLen)
+        const levels = Math.round(relLen / step)
+
+        lines[i] = baseIndent + indentUnitStr.repeat(levels) + line.trimStart()
+    }
+
+    return lines.join('\n')
+}
+
+/**
+ * Deduplicate closing delimiters that overlap with the suffix.
+ * Prevents double parentheses, double brackets, double quotes, and duplicate closing braces.
+ * Only deduplicates closing delimiters when they are unmatched within the completion itself.
+ */
+export function deduplicateSuffix(text: string, suffix: string): string {
+    if (!text || !suffix) return text
+
+    const trimmedSuffix = suffix.trimStart()
+    if (!trimmedSuffix) return text
+
+    // Check closing brace
+    const openBraces = countOccurrences(text, '{')
+    const closeBraces = countOccurrences(text, '}')
+    if (closeBraces > openBraces) {
+        if (/\n\s*\}\s*$/.test(text) && /^\s*\}\s*/.test(suffix)) {
+            text = text.replace(/\n\s*\}\s*$/, '')
+            return text.trimEnd()
+        }
+        if (text.endsWith('}') && trimmedSuffix.startsWith('}')) {
+            text = text.slice(0, -1).trimEnd()
+            return text
+        }
+    }
+
+    // Check closing parenthesis
+    const openParens = countOccurrences(text, '(')
+    const closeParens = countOccurrences(text, ')')
+    if (closeParens > openParens) {
+        if (text.endsWith(');') && trimmedSuffix.startsWith(');')) {
+            return text.slice(0, -2).trimEnd()
+        }
+        if (text.endsWith(')') && trimmedSuffix.startsWith(')')) {
+            return text.slice(0, -1).trimEnd()
+        }
+    }
+
+    // Check closing bracket
+    const openBrackets = countOccurrences(text, '[')
+    const closeBrackets = countOccurrences(text, ']')
+    if (closeBrackets > openBrackets) {
+        if (text.endsWith('];') && trimmedSuffix.startsWith('];')) {
+            return text.slice(0, -2).trimEnd()
+        }
+        if (text.endsWith(']') && trimmedSuffix.startsWith(']')) {
+            return text.slice(0, -1).trimEnd()
+        }
+    }
+
+    if (text.endsWith(';') && trimmedSuffix.startsWith(';')) {
+        return text.slice(0, -1).trimEnd()
+    }
+
+    return text
+}
+
+/**
+ * Format and sanitize raw completion stream/output:
+ * 1. Strips markdown fences, FIM tags, and xml tags
+ * 2. Deduplicates already-typed prefix tokens
+ * 3. Re-bases multi-line indentation to match editor baseIndent
+ * 4. Deduplicates overlapping suffix delimiters
+ */
 export function sanitizeCompletion(
     raw: string,
-    context: InlineCompletionContext
+    context: InlineCompletionContext,
+    indentUnitStr = '    '
 ): string {
     if (!raw) return ''
 
@@ -157,6 +349,7 @@ export function sanitizeCompletion(
         .replace(/\n?```\s*$/, '')
         .replace(/<\|fim_(?:prefix|suffix|middle)\|>/gi, '')
         .replace(/<<<?(?:FIM|CODE)_[A-Z_]+>>>?/gi, '')
+        .replace(/<\/?(?:prefix|suffix|middle)>/gi, '')
 
     // Drop a single leading prose line only when multiple lines exist
     const lines = text.split('\n')
@@ -167,32 +360,15 @@ export function sanitizeCompletion(
 
     text = text.trimEnd()
 
-    // Strip duplicate of what's already typed on this line. Do not strip
-    // indentation-only prefixes; those are part of the insertion context.
-    let strippedLinePrefix = false
-    if (context.linePrefix.trim() && text.startsWith(context.linePrefix)) {
-        text = text.slice(context.linePrefix.length)
-        strippedLinePrefix = true
-    }
+    // 1. Strip already typed prefix
+    text = stripAlreadyTypedPrefix(text, context)
 
-    const typedToken = context.linePrefix.match(/[A-Za-z0-9_$]+$/)?.[0] ?? ''
-    if (!strippedLinePrefix && typedToken && text.startsWith(typedToken)) {
-        text = text.slice(typedToken.length)
-        strippedLinePrefix = true
-    }
+    // 2. Re-base multi-line indentation
+    const unit = context.indentUnit || indentUnitStr
+    text = rebaseMultiLineIndentation(text, context.indent, unit)
 
-    // Ensure first line respects cursor indent when mid-block
-    if (
-        text &&
-        context.indent &&
-        !strippedLinePrefix &&
-        !text.startsWith(context.indent)
-    ) {
-        const first = text.split('\n')[0]
-        if (first.trim() && !/^(?:}|\]|\)|;)/.test(first.trim())) {
-            text = context.indent + first.trimStart() + text.slice(first.length)
-        }
-    }
+    // 3. Deduplicate overlapping suffix delimiters
+    text = deduplicateSuffix(text, context.suffix)
 
     if (text.length > 2000) {
         text = text.slice(0, 2000)
@@ -204,6 +380,8 @@ export function sanitizeCompletion(
 }
 
 export function normalizeAutomaticCompletion(text: string): string {
+    if (!text) return ''
+
     const cleaned = text
         .replace(/\r/g, '')
         .split('\n')
@@ -215,10 +393,27 @@ export function normalizeAutomaticCompletion(text: string): string {
     if (!cleaned) return ''
 
     const lines = cleaned.split('\n')
-    if (lines.length === 1) return lines[0].slice(0, 180)
+    if (lines.length === 1) return lines[0].slice(0, 240)
 
-    const firstNonEmpty = lines.find(line => line.trim().length > 0) || ''
-    return firstNonEmpty.slice(0, 180)
+    const line0 = lines[0].trim()
+    const opensBlock = /[{:(\[]\s*$|=>\s*$/.test(line0)
+
+    if (opensBlock) {
+        const slice = lines.slice(0, 12)
+        let lastClosingIdx = -1
+        for (let i = 1; i < slice.length; i++) {
+            if (/^[}\])]\s*;?$/.test(slice[i].trim())) {
+                lastClosingIdx = i
+                break
+            }
+        }
+        if (lastClosingIdx > 0) {
+            return slice.slice(0, lastClosingIdx + 1).join('\n')
+        }
+        return slice.join('\n')
+    }
+
+    return lines[0].slice(0, 240)
 }
 
 function isLikelyCode(line: string): boolean {
@@ -252,7 +447,7 @@ function buildFastCompletionPrompt(context: InlineCompletionContext) {
         {
             role: 'system' as const,
             content:
-                'You are an expert low-latency code completion engine. Return only a short code continuation for the cursor. No markdown, no prose, no explanations.',
+                'You are an expert low-latency code completion engine. Continue the code exactly at the cursor between <prefix> and <suffix>. Match the file indentation and coding style perfectly. Output ONLY raw code to insert — zero markdown, zero backticks, zero explanations.',
         },
         {
             role: 'user' as const,
@@ -265,7 +460,7 @@ function buildFastCompletionPrompt(context: InlineCompletionContext) {
                 '<suffix>',
                 suffix,
                 '</suffix>',
-                'Complete at the cursor. Return only the next short code continuation, preferably one line.',
+                'Generate the exact continuation at the cursor to insert between <prefix> and <suffix>. Do not repeat characters from <prefix> or <suffix>.',
             ].join('\n'),
         },
     ]

@@ -63,11 +63,26 @@ export function App() {
 
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
-            const isControl = connector.PLATFORM_CM_KEY === 'Ctrl'
-            const isCmdOrCtrl =
-                (isControl && e.ctrlKey) || (!isControl && e.metaKey)
+            const isPlatformMod = connector.PLATFORM_CM_KEY === 'Ctrl' ? e.ctrlKey : e.metaKey
+            const isCmd = e.metaKey
+            const isCtrl = e.ctrlKey
 
-            if (isCmdOrCtrl) {
+            // Cmd+J, Ctrl+J, Cmd+`, Ctrl+` - Toggle Terminal
+            if (
+                (e.key.toLowerCase() === 'j' ||
+                    e.key === '`' ||
+                    e.code === 'KeyJ' ||
+                    e.code === 'Backquote') &&
+                !e.shiftKey &&
+                (isCmd || isCtrl)
+            ) {
+                e.preventDefault()
+                e.stopPropagation()
+                dispatch(gs.toggleTerminal())
+                return
+            }
+
+            if (isPlatformMod || isCmd) {
                 // Cmd+K - AI inline edit / generate command bar (blocked on welcome screen)
                 if (e.key === 'k' && !e.shiftKey) {
                     if (screenState === 'welcome') return
@@ -101,11 +116,49 @@ export function App() {
                     return
                 }
 
-                // Cmd+L - Open AI Chat Sidebar
-                if (e.key === 'l') {
+                // Cmd+L - Open / Focus / Toggle AI Chat Sidebar
+                if (
+                    (e.key.toLowerCase() === 'l' || e.code === 'KeyL') &&
+                    !e.shiftKey
+                ) {
                     e.preventDefault()
                     e.stopPropagation()
-                    dispatch(ts.triggerAICommandPalette())
+
+                    // Check for selected text in document to pass to AI Chat
+                    const selectedText = window.getSelection()?.toString()
+                    if (selectedText && selectedText.trim()) {
+                        ;(window as any).__cursorChatQuery = selectedText.trim()
+                    }
+
+                    if (!aiSidebarOpen) {
+                        dispatch(ts.triggerAICommandPalette())
+                    } else {
+                        // Check if textarea inside AI sidebar is currently focused
+                        const activeEl = document.activeElement
+                        const isTextareaFocused =
+                            activeEl &&
+                            (activeEl.tagName === 'TEXTAREA' ||
+                                Boolean(activeEl.closest('.app__rightsidebarwrapper')))
+
+                        if (isTextareaFocused && (!selectedText || !selectedText.trim())) {
+                            // Already in chat input without selection -> toggle closed
+                            dispatch(ts.triggerAICommandPalette())
+                        } else {
+                            // Focus the textarea in the open AI sidebar
+                            const textarea = document.querySelector<HTMLTextAreaElement>(
+                                '.app__rightsidebarwrapper textarea'
+                            )
+                            if (textarea) {
+                                if (selectedText && selectedText.trim()) {
+                                    textarea.value = selectedText.trim()
+                                    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+                                }
+                                textarea.focus()
+                            } else {
+                                dispatch(ts.triggerAICommandPalette())
+                            }
+                        }
+                    }
                     return
                 }
 
@@ -201,7 +254,7 @@ export function App() {
                 }
             }
         },
-        [dispatch, commandBarOpen, commandPaletteOpen, screenState]
+        [dispatch, commandBarOpen, commandPaletteOpen, screenState, aiSidebarOpen]
     )
 
     useEffect(() => {

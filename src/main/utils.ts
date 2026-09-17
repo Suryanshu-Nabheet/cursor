@@ -2,7 +2,7 @@ import * as path from 'path'
 import { app } from 'electron'
 import { getPlatformInfo } from '../platform'
 
-export const resourcesDir = app.isPackaged
+export const resourcesDir = app?.isPackaged
     ? path.join(process.resourcesPath)
     : path.join(__dirname, '..', '..')
 
@@ -18,8 +18,8 @@ export const rgLoc = path.join(
 export const PLATFORM_INFO = getPlatformInfo()
 
 export const isAppInApplicationsFolder =
-    app.getPath('exe').includes('Applications') ||
-    !app.isPackaged ||
+    (app?.getPath?.('exe')?.includes('Applications') ?? false) ||
+    !app?.isPackaged ||
     process.platform !== 'darwin'
 
 export const META_KEY = process.platform === 'darwin' ? 'Cmd' : 'Ctrl'

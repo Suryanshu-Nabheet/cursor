@@ -31,12 +31,60 @@ const PRIMARY_TOOL_ARGUMENT: Record<string, string> = {
     search_code: 'query',
 }
 
+function repairWriteFileArguments(raw: string): Record<string, any> | null {
+    const pathMatch = raw.match(/["']?path["']?\s*:\s*["']([^"'\r\n]+)["']/i)
+    if (!pathMatch) return null
+    const path = pathMatch[1].trim()
+
+    // 1. Backtick template literal: `...`
+    const backtickMatch = raw.match(/["']?content["']?\s*:\s*`([\s\S]*?)`\s*\}?\s*\}?$/i)
+    if (backtickMatch) {
+        return { path, content: backtickMatch[1] }
+    }
+
+    // 2. Standard or unescaped string
+    const contentMatch = raw.match(/["']?content["']?\s*:\s*([\s\S]*)/i)
+    if (!contentMatch) return null
+    let content = contentMatch[1].trim()
+    if (content.startsWith('"') || content.startsWith("'") || content.startsWith('`')) {
+        content = content.slice(1)
+    }
+    content = content.replace(/["'`]\s*\}?\s*\}?\s*$/, '')
+    return { path, content }
+}
+
+function repairEditFileArguments(raw: string): Record<string, any> | null {
+    const pathMatch = raw.match(/["']?path["']?\s*:\s*["']([^"'\r\n]+)["']/i)
+    if (!pathMatch) return null
+    const path = pathMatch[1].trim()
+
+    const oldMatch = raw.match(
+        /["']?oldText["']?\s*:\s*["'`]?([\s\S]*?)["'`]?\s*,\s*["']?newText["']?/i
+    )
+    const newMatch = raw.match(/["']?newText["']?\s*:\s*([\s\S]*)/i)
+    if (oldMatch && newMatch) {
+        let newText = newMatch[1].trim()
+        if (newText.startsWith('"') || newText.startsWith("'") || newText.startsWith('`')) {
+            newText = newText.slice(1)
+        }
+        newText = newText.replace(/["'`]\s*\}?\s*\}?\s*$/, '')
+        return { path, oldText: oldMatch[1], newText }
+    }
+    return null
+}
+
 function parseToolArguments(
     toolName: string,
     rawArguments: string
 ): { arguments: Record<string, any>; repaired: boolean } | null {
+    const cleanedRaw = rawArguments
+        .trim()
+        .replace(/^```(?:json)?\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim()
+
     try {
-        const parsed = JSON.parse(rawArguments)
+        const parsed = JSON.parse(cleanedRaw)
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
             return { arguments: parsed, repaired: false }
         }
@@ -49,13 +97,20 @@ function parseToolArguments(
         // Fall through to repair common local-model argument fragments.
     }
 
+    if (toolName === 'write_file') {
+        const repaired = repairWriteFileArguments(cleanedRaw)
+        if (repaired) return { arguments: repaired, repaired: true }
+    }
+
+    if (toolName === 'edit_file') {
+        const repaired = repairEditFileArguments(cleanedRaw)
+        if (repaired) return { arguments: repaired, repaired: true }
+    }
+
     const primaryKey = PRIMARY_TOOL_ARGUMENT[toolName]
     if (!primaryKey) return null
 
-    const normalized = rawArguments
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/```\s*$/i, '')
+    const normalized = cleanedRaw
         .replace(/[“”]/g, '"')
         .replace(/[‘’]/g, "'")
 
@@ -75,6 +130,183 @@ function parseToolArguments(
     if (!cleaned) return null
 
     return { arguments: { [primaryKey]: cleaned }, repaired: true }
+}
+
+const KNOWN_TOOLS = new Set([
+    'read_file',
+    'write_file',
+    'edit_file',
+    'list_files',
+    'create_directory',
+    'delete_file',
+    'run_terminal_command',
+    'run_command',
+    'search_code',
+    'open_file',
+])
+
+export function tryParseToolCallObject(raw: string): { name: string; arguments: Record<string, any> } | null {
+    const trimmed = raw.trim()
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null
+
+    // 1. Direct standard parse
+    try {
+        const obj = JSON.parse(trimmed)
+        const name = obj.name || obj.tool || obj.function || obj.action
+        if (typeof name === 'string' && KNOWN_TOOLS.has(name.trim())) {
+            let finalName = name.trim()
+            const args = obj.arguments || obj.parameters || obj.action_input || {}
+            if (typeof args === 'object' && args !== null && !Array.isArray(args)) {
+                if (finalName === 'edit_file' && args.content && !args.oldText && !args.newText) {
+                    finalName = 'write_file'
+                }
+                return { name: finalName, arguments: args }
+            }
+            if (typeof args === 'string') {
+                const parsedArgs = parseToolArguments(finalName, args)
+                if (parsedArgs) {
+                    let finalArgs = parsedArgs.arguments
+                    if (finalName === 'edit_file' && finalArgs.content && !finalArgs.oldText && !finalArgs.newText) {
+                        finalName = 'write_file'
+                    }
+                    return { name: finalName, arguments: finalArgs }
+                }
+            }
+        }
+    } catch {
+        // Fall through to regex/repair for unescaped code content
+    }
+
+    // 2. Regex-assisted recovery for unescaped code content
+    const nameMatch = trimmed.match(/["']?(?:name|tool|function|action)["']?\s*:\s*["']?([a-zA-Z0-9_-]+)["']?/)
+    if (nameMatch) {
+        const name = nameMatch[1].trim()
+        if (KNOWN_TOOLS.has(name)) {
+            if (name === 'write_file') {
+                const repaired = repairWriteFileArguments(trimmed)
+                if (repaired) return { name, arguments: repaired }
+            }
+            if (name === 'edit_file') {
+                const repaired = repairEditFileArguments(trimmed)
+                if (repaired) return { name, arguments: repaired }
+                const writeRepaired = repairWriteFileArguments(trimmed)
+                if (writeRepaired) return { name: 'write_file', arguments: writeRepaired }
+            }
+
+            const pathMatch = trimmed.match(/"(?:path|targetPath|file)"\s*:\s*"([^"]+)"/i)
+            const commandMatch = trimmed.match(/"(?:command|cmd)"\s*:\s*"([^"]+)"/i)
+            const queryMatch = trimmed.match(/"(?:query|pattern)"\s*:\s*"([^"]+)"/i)
+
+            const args: Record<string, any> = {}
+            if (pathMatch) args.path = pathMatch[1]
+            if (commandMatch) args.command = commandMatch[1]
+            if (queryMatch) args.query = queryMatch[1]
+
+            if (Object.keys(args).length > 0) {
+                return { name, arguments: args }
+            }
+        }
+    }
+
+    return null
+}
+
+export function extractJsonToolCalls(text: string): {
+    cleanText: string
+    toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }>
+} {
+    if (!text || !text.trim()) {
+        return { cleanText: '', toolCalls: [] }
+    }
+
+    const toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }> = []
+    let modifiedText = text
+
+    // 1. Check fenced code blocks: ```(?:json)? ... ```
+    const fenceRegex = /```(?:json)?\s*([\s\S]*?)```/gi
+    let fenceMatch: RegExpExecArray | null
+
+    while ((fenceMatch = fenceRegex.exec(text)) !== null) {
+        const blockContent = fenceMatch[1].trim()
+        if (blockContent.startsWith('{') && blockContent.endsWith('}')) {
+            const parsed = tryParseToolCallObject(blockContent)
+            if (parsed) {
+                toolCalls.push({
+                    id: `call_json_${Date.now()}_${toolCalls.length}`,
+                    name: parsed.name,
+                    arguments: parsed.arguments,
+                })
+                modifiedText = modifiedText.replace(fenceMatch[0], '')
+            }
+        }
+    }
+
+    // 2. Check raw/unfenced JSON objects containing a known tool
+    let searchIdx = 0
+    while (searchIdx < modifiedText.length) {
+        const startBrace = modifiedText.indexOf('{', searchIdx)
+        if (startBrace === -1) break
+
+        let depth = 0
+        let inString = false
+        let isEscaped = false
+        let endBrace = -1
+
+        for (let i = startBrace; i < modifiedText.length; i++) {
+            const char = modifiedText[i]
+
+            if (isEscaped) {
+                isEscaped = false
+                continue
+            }
+
+            if (char === '\\') {
+                isEscaped = true
+                continue
+            }
+
+            if (char === '"') {
+                inString = !inString
+                continue
+            }
+
+            if (!inString) {
+                if (char === '{') {
+                    depth++
+                } else if (char === '}') {
+                    depth--
+                    if (depth === 0) {
+                        endBrace = i
+                        break
+                    }
+                }
+            }
+        }
+
+        if (endBrace !== -1) {
+            const candidate = modifiedText.substring(startBrace, endBrace + 1)
+            const parsed = tryParseToolCallObject(candidate)
+            if (parsed) {
+                toolCalls.push({
+                    id: `call_raw_${Date.now()}_${toolCalls.length}`,
+                    name: parsed.name,
+                    arguments: parsed.arguments,
+                })
+                modifiedText =
+                    modifiedText.substring(0, startBrace) +
+                    modifiedText.substring(endBrace + 1)
+                searchIdx = startBrace
+                continue
+            }
+        }
+
+        searchIdx = startBrace + 1
+    }
+
+    return {
+        cleanText: modifiedText.trim(),
+        toolCalls,
+    }
 }
 
 /**
@@ -473,23 +705,15 @@ async function* streamOpenAIWithTools(
 
         // Check for JSON fallback in the text
         if (toolCallsMap.size === 0) {
-            const jsonRegex = /```json\s*(\{[\s\S]*?\})\s*```/g
-            let match
-            while ((match = jsonRegex.exec(fullTextAccumulator)) !== null) {
-                try {
-                    const parsedTool = JSON.parse(match[1])
-                    if (parsedTool.name && parsedTool.arguments) {
-                        yield {
-                            type: 'tool_call',
-                            toolCall: {
-                                id: `call_${Date.now()}_${Math.random()}`,
-                                name: parsedTool.name,
-                                arguments: parsedTool.arguments,
-                            },
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Failed to parse detected JSON tool call', e)
+            const { toolCalls: fallbackToolCalls } = extractJsonToolCalls(fullTextAccumulator)
+            for (const parsedTool of fallbackToolCalls) {
+                yield {
+                    type: 'tool_call',
+                    toolCall: {
+                        id: parsedTool.id,
+                        name: parsedTool.name,
+                        arguments: parsedTool.arguments,
+                    },
                 }
             }
         }

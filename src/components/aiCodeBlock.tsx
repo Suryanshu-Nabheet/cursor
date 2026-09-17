@@ -205,6 +205,7 @@ interface ToolCallCardProps {
     isExecuting?: boolean
     isPending?: boolean
     needsApproval?: boolean
+    warning?: string
     onAccept?: () => void
     onReject?: () => void
 }
@@ -218,6 +219,7 @@ export function ToolCallCard({
     isExecuting,
     isPending,
     needsApproval,
+    warning,
     onAccept,
     onReject,
 }: ToolCallCardProps) {
@@ -350,6 +352,12 @@ export function ToolCallCard({
 
             {isExpanded && (
                 <div className="pt-1 pb-3 pl-10 pr-3 border-l border-ui-border ml-[21px]">
+                    {warning && (
+                        <div className="mb-2 p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-start gap-1.5">
+                            <Codicon name="warning" className="text-amber-400 mt-0.5 shrink-0" />
+                            <span>{warning}</span>
+                        </div>
+                    )}
                     <div className="mb-2">
                         <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">Arguments</div>
                         <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">

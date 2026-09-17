@@ -139,11 +139,27 @@ function SearchComponent() {
             return
         }
 
+        let targetRoot = rootPath
+        if (!targetRoot) {
+            try {
+                // @ts-ignore
+                const proj = await connector.getProject()
+                targetRoot = proj?.defaultFolder
+            } catch {
+                // ignore
+            }
+        }
+
+        if (!targetRoot) {
+            setResults([])
+            return
+        }
+
         try {
             // @ts-ignore
             const out: string[] = await connector.searchRipGrep({
                 query: q,
-                rootPath: rootPath,
+                rootPath: targetRoot,
                 badPaths: [], // TODO: Add exclude logic
                 caseSensitive: mCase,
                 matchWholeWord,

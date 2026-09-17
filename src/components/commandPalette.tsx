@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from '../app/hooks'
 import {
     openRemotePopup,
     openTerminal,
+    toggleTerminal,
     splitCurrentPane,
 } from '../features/globalSlice'
 import { HoverState } from '../features/window/state'
@@ -176,12 +177,12 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
     terminal: {
         id: 'terminal',
         type: 'normal',
-        name: 'Terminal: Open New Terminal',
-        description: 'Open the integrated terminal',
-        shortcut: ['Ctrl+`'],
+        name: 'Terminal: Toggle Integrated Terminal',
+        description: 'Open or close the integrated terminal panel',
+        shortcut: [commandKey + 'J', 'Ctrl+`'],
         icon: '>_',
         category: 'Terminal',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(openTerminal()) },
+        action: (dispatch: Dispatch<AnyAction>) => { dispatch(toggleTerminal()) },
     },
     ssh: {
         id: 'ssh',

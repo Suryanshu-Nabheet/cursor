@@ -146,7 +146,10 @@ const searchUnseenFiles = async (query: string, state: FullState) => {
     if (query == '') {
         return []
     }
-    const rootPath = state.global.rootPath!
+    const rootPath = state.global.rootPath
+    if (!rootPath) {
+        return []
+    }
     // Now we need to search the files that haven't been seen yet
 
     const nameResultsFuture = connector.searchFilesNameGit({ query, rootPath })

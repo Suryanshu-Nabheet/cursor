@@ -306,13 +306,23 @@ export function injectWorkspaceContext(
             )
     )
 
-    const hasSystemPrompt = filtered.some(
-        m => m.role === 'system' && m.content === AI_SYSTEM_PROMPT
+    const systemPromptIdx = filtered.findIndex(
+        m =>
+            m.role === 'system' &&
+            (m.content === AI_SYSTEM_PROMPT ||
+                (typeof m.content === 'string' && !m.content.startsWith(WORKSPACE_CONTEXT_HEADER)))
     )
 
-    const rest = hasSystemPrompt
-        ? filtered
-        : [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...filtered]
+    let rest: typeof messages
+    if (systemPromptIdx === -1) {
+        rest = [{ role: 'system', content: AI_SYSTEM_PROMPT }, ...filtered]
+    } else {
+        rest = [
+            ...filtered.slice(0, systemPromptIdx),
+            { role: 'system', content: AI_SYSTEM_PROMPT },
+            ...filtered.slice(systemPromptIdx + 1),
+        ]
+    }
 
     if (!workspaceContext.trim()) {
         return rest
