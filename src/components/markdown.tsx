@@ -36,7 +36,7 @@ import { getCursorTheme } from '../theme'
 import { getSettings } from '../features/settings/settingsSelectors'
 import { vim } from './codemirror-vim'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faArrowUp, faCopy } from '@fortawesome/free-solid-svg-icons'
+import { faCopy } from '@fortawesome/free-solid-svg-icons'
 
 import ReactTextareaAutocomplete from '@webscopeio/react-textarea-autocomplete'
 

@@ -11,6 +11,7 @@ The reason for this complication is that we can allow codemirror's range changin
 logic to work when we make edits to the diff and expand/close them. Though in hindsite
 it seems like that feature is never used.
 */
+/* eslint-disable @typescript-eslint/ban-types, @typescript-eslint/no-this-alias, no-var, prefer-const */
 import * as JSDiff from 'diff'
 import {
     ChangeSpec,

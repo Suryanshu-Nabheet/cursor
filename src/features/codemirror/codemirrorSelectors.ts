@@ -8,13 +8,14 @@
 */
 import { FullCodeMirrorState, getCodeMirrorView } from './codemirrorSlice'
 
-export const getViewId = (tabId: number | null) => (state: {}) => {
-    if (!tabId) return
-    const castState = state as FullCodeMirrorState
-    if (tabId in castState.codeMirrorState.editorMap) {
-        return castState.codeMirrorState.editorMap[tabId]
+export const getViewId =
+    (tabId: number | null) => (state: FullCodeMirrorState) => {
+        if (!tabId) return
+        const castState = state
+        if (tabId in castState.codeMirrorState.editorMap) {
+            return castState.codeMirrorState.editorMap[tabId]
+        }
     }
-}
 
 /// null - means there is no codemirror instance in frame
 /// true - means there is a selection

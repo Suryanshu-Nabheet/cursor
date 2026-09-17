@@ -121,19 +121,6 @@ export function isRiskyTerminalCommand(command: string): boolean {
     return false
 }
 
-const pathJoin = (...args: string[]) => {
-    return args
-        .map((part, i) => {
-            if (i === 0) {
-                return part.trim().replace(/[/]*$/g, '')
-            } else {
-                return part.trim().replace(/(^[/]*|[/]*$)/g, '')
-            }
-        })
-        .filter((x) => x.length)
-        .join('/')
-}
-
 export interface ToolCall {
     id?: string
     name: string
@@ -652,18 +639,6 @@ async function executeTool(
                 .join('\n')
 
             return `Search results for "${args.query}":\n${formatted}`
-        }
-
-        case 'open_file': {
-            const fullPath = pathJoin(rootPath, args.path)
-            if (dispatch && actions?.openFile) {
-                try {
-                    await dispatch(actions.openFile({ filePath: fullPath }))
-                } catch (e) {
-                    return `Error opening file: ${e}`
-                }
-            }
-            return `Opened ${args.path}`
         }
 
         default:

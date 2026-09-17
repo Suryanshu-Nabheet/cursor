@@ -271,7 +271,8 @@ function generateVimPlugin(callbacks: CustomVimConfig) {
                     i < l;
                     i++
                 ) {
-                    let { from, to } = ranges[i]
+                    const { from } = ranges[i]
+                    let { to } = ranges[i]
                     while (
                         i < l - 1 &&
                         to > ranges[i + 1].from - 2 * HighlightMargin

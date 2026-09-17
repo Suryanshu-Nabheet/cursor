@@ -22,6 +22,8 @@
         "@typescript-eslint/no-var-requires": "off",
         "import/no-named-as-default": "off",
         "no-constant-condition": "off",
+        "@typescript-eslint/no-extra-semi": "off",
+        "no-extra-semi": "off",
         "unused-imports/no-unused-imports": "error",
         "unused-imports/no-unused-vars": [
             "warn",

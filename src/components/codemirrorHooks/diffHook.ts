@@ -30,7 +30,7 @@ export function useSetDiff({
     const dispatch = useAppDispatch()
     useEffect(() => {
         try {
-            const diffId = lastBotMessage?.conversationId!
+            const diffId = lastBotMessage?.conversationId ?? ''
             if (view != null) {
                 if (
                     lastBotMessage != null &&
@@ -70,10 +70,10 @@ export function useSetDiff({
                                 origText: origEditorState.current.doc,
                                 diffId,
                                 origLine: origEditorState.current.doc.lineAt(
-                                    edit?.start!
+                                    edit?.start ?? 0
                                 ).number,
                                 origEndLine: origEditorState.current.doc.lineAt(
-                                    edit?.end!
+                                    edit?.end ?? 0
                                 ).number,
                                 newText: Text.of(
                                     lastBotMessage.message.split('\n')
@@ -93,10 +93,10 @@ export function useSetDiff({
                                 origText: origEditorState.current.doc,
                                 diffId,
                                 origLine: origEditorState.current.doc.lineAt(
-                                    edit?.start!
+                                    edit?.start ?? 0
                                 ).number,
                                 origEndLine: origEditorState.current.doc.lineAt(
-                                    edit?.end!
+                                    edit?.end ?? 0
                                 ).number,
                                 newText: Text.of(
                                     lastBotMessage.message.split('\n')

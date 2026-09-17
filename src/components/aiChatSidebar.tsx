@@ -484,7 +484,7 @@ function MessageBubble({
     function FormattedUserText({ text }: { text: string }) {
         if (!text) return null
         const parts = text.split(
-            /(@[a-zA-Z0-9_\-\.\/:]+|[a-zA-Z0-9_\-\. ]+\.(?:png|jpg|jpeg|gif|svg|webp|pdf))/gi
+            /(@[a-zA-Z0-9_./:-]+|[a-zA-Z0-9_. -]+\.(?:png|jpg|jpeg|gif|svg|webp|pdf))/gi
         )
         return (
             <span>
@@ -955,7 +955,7 @@ export function AIChatSidebar() {
 
         const cursorPos = e.target.selectionStart || val.length
         const textBeforeCursor = val.slice(0, cursorPos)
-        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_\-\.\/]*)$/)
+        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_./-]*)$/)
 
         if (match) {
             setShowMentionPopup(true)
@@ -979,7 +979,7 @@ export function AIChatSidebar() {
         const textBeforeCursor = val.slice(0, cursorPos)
         const textAfterCursor = val.slice(cursorPos)
 
-        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_\-\.\/]*)$/)
+        const match = textBeforeCursor.match(/(?:^|\s)@([a-zA-Z0-9_./-]*)$/)
         if (match) {
             const atIndex = textBeforeCursor.lastIndexOf('@' + match[1])
             const newTextBefore = textBeforeCursor.slice(0, atIndex).trimEnd()

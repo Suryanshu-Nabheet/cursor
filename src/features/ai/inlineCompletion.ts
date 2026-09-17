@@ -410,7 +410,7 @@ export function normalizeAutomaticCompletion(text: string): string {
     if (lines.length === 1) return lines[0].slice(0, 240)
 
     const line0 = lines[0].trim()
-    const opensBlock = /[{:(\[]\s*$|=>\s*$/.test(line0)
+    const opensBlock = /[{(:]\s*$|\[\s*$|=>\s*$/.test(line0)
 
     if (opensBlock) {
         const slice = lines.slice(0, 12)

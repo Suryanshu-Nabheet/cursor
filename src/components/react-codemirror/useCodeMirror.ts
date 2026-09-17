@@ -208,7 +208,6 @@ export function useCodeMirror(props: UseCodeMirror) {
                 effects: StateEffect.reconfigure.of(getExtensions),
             })
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         theme,
         extensions,

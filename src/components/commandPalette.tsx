@@ -3,7 +3,6 @@ import { AnyAction, Dispatch } from '@reduxjs/toolkit'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
 import {
     openRemotePopup,
-    openTerminal,
     toggleTerminal,
     splitCurrentPane,
 } from '../features/globalSlice'

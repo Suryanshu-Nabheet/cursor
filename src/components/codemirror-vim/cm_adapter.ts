@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-types, @typescript-eslint/no-this-alias, no-var, prefer-const */
 import { ChangeDesc, EditorSelection, MapMode, Text } from '@codemirror/state'
 import {
     StringStream,

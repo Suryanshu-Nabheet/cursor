@@ -1,10 +1,13 @@
-export function throttleCallback(fn: Function, limit = 300) {
+export function throttleCallback<T extends (...args: any[]) => any>(
+    fn: T,
+    limit = 300
+) {
     let inThrottle: boolean,
         lastFn: ReturnType<typeof setTimeout>,
         lastTime: number
-    return function (this: any) {
-        const context = this,
-            args = arguments
+    return function (this: any, ...args: any[]) {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const context = this
         if (!inThrottle) {
             fn.apply(context, args)
             lastTime = Date.now()
@@ -22,7 +25,10 @@ export function throttleCallback(fn: Function, limit = 300) {
     }
 }
 
-export function normalThrottleCallback(fn: Function, limit = 300) {
+export function normalThrottleCallback<T extends (...args: any[]) => any>(
+    fn: T,
+    limit = 300
+) {
     let inThrottle: boolean,
         lastFn: ReturnType<typeof setTimeout>,
         lastTime: number

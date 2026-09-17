@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Combobox } from '@headlessui/react'
 import { getIconElement } from './filetree'
 import { openFile } from '../features/globalSlice'
 import { useAppDispatch, useAppSelector } from '../app/hooks'

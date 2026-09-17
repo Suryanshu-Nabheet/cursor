@@ -1,6 +1,3 @@
-import { toggleTerminal } from '../src/features/globalSlice'
-import { triggerAICommandPalette } from '../src/features/tools/toolSlice'
-
 describe('Global IDE Shortcuts (Cmd+L, Cmd+J, Ctrl+`, etc.)', () => {
     afterEach(() => {
         delete (global as any).window

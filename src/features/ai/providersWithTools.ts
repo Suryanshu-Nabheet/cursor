@@ -194,7 +194,7 @@ export function tryParseToolCallObject(
             if (typeof args === 'string') {
                 const parsedArgs = parseToolArguments(finalName, args)
                 if (parsedArgs) {
-                    let finalArgs = parsedArgs.arguments
+                    const finalArgs = parsedArgs.arguments
                     if (
                         finalName === 'edit_file' &&
                         finalArgs.content &&

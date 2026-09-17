@@ -39,6 +39,7 @@ import {
     getCachedFileName,
     getCachedTests,
     getCommentSingle,
+    getLanguageFromFilename,
 } from '../extensions/utils'
 import type {
     Completion,
@@ -61,7 +62,6 @@ import { getCursorTheme } from '../../theme'
 
 import { store } from '../../app/store'
 import { extensionActivationManager } from '../extensions/extensionActivation'
-import { getLanguageFromFilename } from '../extensions/utils'
 
 interface SemanticToken {
     from: number

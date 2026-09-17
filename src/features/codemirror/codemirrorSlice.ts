@@ -48,8 +48,7 @@ function createEditorView(
         ? EditorState.fromJSON(initialState.json, config, initialState.fields)
         : EditorState.create(config)
 
-    let view!: EditorView
-    view = new EditorView({
+    const view: EditorView = new EditorView({
         state: editorState,
         dispatch: useCustomDispatch
             ? (tr) => customDispatch(view, tr)
