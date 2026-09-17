@@ -72,7 +72,10 @@ export function setupTerminal(mainWindow: any, rootPath?: string) {
         } catch {
             /* ignore */
         }
-        const cwd = resolveTerminalCwd(requestRootPath, dynamicProjectRoot || rootPath)
+        const cwd = resolveTerminalCwd(
+            requestRootPath,
+            dynamicProjectRoot || rootPath
+        )
         const size = clampTerminalSize(cols, rows)
 
         let shellToUse =

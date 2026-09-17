@@ -6,7 +6,14 @@ import {
     WidgetType,
     keymap,
 } from '@codemirror/view'
-import { StateField, StateEffect, Prec, Annotation, TransactionSpec, Transaction } from '@codemirror/state'
+import {
+    StateField,
+    StateEffect,
+    Prec,
+    Annotation,
+    TransactionSpec,
+    Transaction,
+} from '@codemirror/state'
 import { store } from '../../app/store'
 import {
     extractInlineCompletionContext,
@@ -29,7 +36,9 @@ export const setGhostTextEffect = StateEffect.define<{
     pos: number
 } | null>()
 
-export const setGhostLoadingEffect = StateEffect.define<{ pos: number } | null>()
+export const setGhostLoadingEffect = StateEffect.define<{
+    pos: number
+} | null>()
 export const acceptGhostTextEffect = StateEffect.define<void>()
 export const dismissGhostTextEffect = StateEffect.define<void>()
 
@@ -119,8 +128,8 @@ const ghostTextField = StateField.define<GhostState>({
         }
         return value
     },
-    provide: f =>
-        EditorView.decorations.from(f, value => {
+    provide: (f) =>
+        EditorView.decorations.from(f, (value) => {
             if (value.kind === 'loading') {
                 return Decoration.set([
                     Decoration.widget({
@@ -177,13 +186,17 @@ function safeDispatch(view: EditorView, spec: TransactionSpec) {
         ? [spec.effects]
         : []
     const hasInvalidGhostPosition = effects.some((effect: any) => {
-        if (effect.is?.(setGhostTextEffect) || effect.is?.(setGhostLoadingEffect)) {
+        if (
+            effect.is?.(setGhostTextEffect) ||
+            effect.is?.(setGhostLoadingEffect)
+        ) {
             const pos = effect.value?.pos
             return typeof pos === 'number' && pos > view.state.doc.length
         }
         return false
     })
-    if (hasInvalidGhostPosition || selection.head > view.state.doc.length) return
+    if (hasInvalidGhostPosition || selection.head > view.state.doc.length)
+        return
     try {
         view.dispatch({
             ...spec,
@@ -302,8 +315,8 @@ const ghostTextSchedulerPlugin = ViewPlugin.fromClass(
 const ghostTextTriggerPlugin = ViewPlugin.fromClass(
     class {
         update(update: ViewUpdate) {
-            const fromGhostAccept = update.transactions.some(tr =>
-                tr.effects.some(e => e.is(acceptGhostTextEffect))
+            const fromGhostAccept = update.transactions.some((tr) =>
+                tr.effects.some((e) => e.is(acceptGhostTextEffect))
             )
 
             if (update.selectionSet && !update.docChanged) {
@@ -338,7 +351,7 @@ export function triggerInlineCompletion(view: EditorView) {
 const ghostTextKeymap = keymap.of([
     {
         key: 'Escape',
-        run: view => {
+        run: (view) => {
             const ghost = view.state.field(ghostTextField, false)
             if (!ghost || ghost.kind === 'idle') return false
             cancelViewRequest(view)
@@ -348,14 +361,14 @@ const ghostTextKeymap = keymap.of([
     },
     {
         key: 'Mod-Shift-Space',
-        run: view => {
+        run: (view) => {
             triggerInlineCompletion(view)
             return true
         },
     },
     {
         key: 'Alt-\\',
-        run: view => {
+        run: (view) => {
             triggerInlineCompletion(view)
             return true
         },
@@ -369,7 +382,9 @@ export const ghostTextExtension = [
     Prec.highest(ghostTextKeymap),
 ]
 
-export function hasGhostText(state: import('@codemirror/state').EditorState): boolean {
+export function hasGhostText(
+    state: import('@codemirror/state').EditorState
+): boolean {
     const g = state.field(ghostTextField, false)
     return g?.kind === 'suggestion' && !!g.text
 }

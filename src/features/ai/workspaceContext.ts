@@ -25,7 +25,11 @@ function getConnector() {
     return null
 }
 
-function getLiveEditorContent(state: FullState, tabId: number, fileId: number): string {
+function getLiveEditorContent(
+    state: FullState,
+    tabId: number,
+    fileId: number
+): string {
     const viewId = state.codeMirrorState.editorMap[tabId]
     if (viewId) {
         const view = getCodeMirrorView(viewId)
@@ -42,11 +46,14 @@ function getEditorDiagnostics(state: FullState, tabId: number): Diagnostic[] {
     const ls = view.state.field(lintState, false)
     if (!ls) return []
     return getDiagnostics(ls, view.state).filter(
-        d => d.severity === 'error' || d.severity === 'warning'
+        (d) => d.severity === 'error' || d.severity === 'warning'
     )
 }
 
-function truncate(text: string, max: number): { text: string; truncated: boolean } {
+function truncate(
+    text: string,
+    max: number
+): { text: string; truncated: boolean } {
     if (text.length <= max) return { text, truncated: false }
     return {
         text: text.slice(0, max) + `\n… [truncated ${text.length - max} chars]`,
@@ -55,9 +62,14 @@ function truncate(text: string, max: number): { text: string; truncated: boolean
 }
 
 function formatDiagnostics(path: string, diags: Diagnostic[]): string[] {
-    return diags.slice(0, MAX_DIAGNOSTICS).map(d =>
-        `- L${d.line}:${d.col} [${d.severity}] ${d.message}${d.source ? ` (${d.source})` : ''}`
-    )
+    return diags
+        .slice(0, MAX_DIAGNOSTICS)
+        .map(
+            (d) =>
+                `- L${d.line}:${d.col} [${d.severity}] ${d.message}${
+                    d.source ? ` (${d.source})` : ''
+                }`
+        )
 }
 
 function getOpenEditorTabs(state: FullState) {
@@ -174,17 +186,26 @@ export async function buildWorkspaceContext(state: FullState): Promise<string> {
     }
 
     const projectName = rootPath.split('/').pop() || rootPath
-    lines.push('## Project', `- Root: ${rootPath}`, `- Name: ${projectName}`, '')
+    lines.push(
+        '## Project',
+        `- Root: ${rootPath}`,
+        `- Name: ${projectName}`,
+        ''
+    )
 
     const openTabs = getOpenEditorTabs(state)
     const activeTabId = getActiveTabId(global)
     const activeFileId = getActiveFileId(global)
-    const activeTab = openTabs.find(t => t.tabId === activeTabId)
+    const activeTab = openTabs.find((t) => t.tabId === activeTabId)
 
     if (activeTab && activeFileId != null) {
         const viewId = state.codeMirrorState.editorMap[activeTab.tabId]
         const view = viewId ? getCodeMirrorView(viewId) : null
-        const content = getLiveEditorContent(state, activeTab.tabId, activeTab.fileId)
+        const content = getLiveEditorContent(
+            state,
+            activeTab.tabId,
+            activeTab.fileId
+        )
         const { text: fileBody } = truncate(content, MAX_ACTIVE_FILE_CHARS)
 
         let cursorLine = 1
@@ -208,7 +229,7 @@ export async function buildWorkspaceContext(state: FullState): Promise<string> {
             `- Absolute: ${activeTab.path}`,
             `- Language: ${activeTab.language}`,
             `- Cursor: line ${cursorLine}, col ${cursorCol}`,
-            `- Unsaved: ${activeTab.saved ? 'no' : 'yes'}`,
+            `- Unsaved: ${activeTab.saved ? 'no' : 'yes'}`
         )
         if (selectionInfo) lines.push(selectionInfo)
         lines.push('', '### Active File Content', '```', fileBody, '```', '')
@@ -220,15 +241,25 @@ export async function buildWorkspaceContext(state: FullState): Promise<string> {
         lines.push('## Open Files')
         for (const tab of openTabs) {
             const diags = getEditorDiagnostics(state, tab.tabId)
-            const errCount = diags.filter(d => d.severity === 'error').length
-            const warnCount = diags.filter(d => d.severity === 'warning').length
+            const errCount = diags.filter((d) => d.severity === 'error').length
+            const warnCount = diags.filter(
+                (d) => d.severity === 'warning'
+            ).length
             const flags = [
                 tab.isActive ? 'active' : null,
                 tab.saved ? null : 'unsaved',
-                errCount ? `${errCount} error${errCount !== 1 ? 's' : ''}` : null,
-                warnCount ? `${warnCount} warning${warnCount !== 1 ? 's' : ''}` : null,
+                errCount
+                    ? `${errCount} error${errCount !== 1 ? 's' : ''}`
+                    : null,
+                warnCount
+                    ? `${warnCount} warning${warnCount !== 1 ? 's' : ''}`
+                    : null,
             ].filter(Boolean)
-            lines.push(`- ${tab.relPath}${flags.length ? ` (${flags.join(', ')})` : ''}`)
+            lines.push(
+                `- ${tab.relPath}${
+                    flags.length ? ` (${flags.join(', ')})` : ''
+                }`
+            )
         }
         lines.push('')
     }
@@ -252,7 +283,7 @@ export async function buildWorkspaceContext(state: FullState): Promise<string> {
         lines.push('')
     }
 
-    const unsaved = openTabs.filter(t => !t.saved)
+    const unsaved = openTabs.filter((t) => !t.saved)
     if (unsaved.length > 0) {
         lines.push('## Unsaved Buffers')
         for (const tab of unsaved) {
@@ -287,18 +318,22 @@ export async function buildWorkspaceContext(state: FullState): Promise<string> {
         '## Agent Notes',
         '- Use read_file / list_files / search_code for anything not shown here.',
         '- edit_file requires exact oldText — always read_file first.',
-        '- Diagnostics and unsaved buffers reflect current editor state.',
+        '- Diagnostics and unsaved buffers reflect current editor state.'
     )
 
     return lines.join('\n')
 }
 
 export function injectWorkspaceContext(
-    messages: Array<{ role: string; content: string | null; [key: string]: any }>,
+    messages: Array<{
+        role: string
+        content: string | null
+        [key: string]: any
+    }>,
     workspaceContext: string
 ): typeof messages {
     const filtered = messages.filter(
-        m =>
+        (m) =>
             !(
                 m.role === 'system' &&
                 typeof m.content === 'string' &&
@@ -307,10 +342,11 @@ export function injectWorkspaceContext(
     )
 
     const systemPromptIdx = filtered.findIndex(
-        m =>
+        (m) =>
             m.role === 'system' &&
             (m.content === AI_SYSTEM_PROMPT ||
-                (typeof m.content === 'string' && !m.content.startsWith(WORKSPACE_CONTEXT_HEADER)))
+                (typeof m.content === 'string' &&
+                    !m.content.startsWith(WORKSPACE_CONTEXT_HEADER)))
     )
 
     let rest: typeof messages
@@ -329,7 +365,7 @@ export function injectWorkspaceContext(
     }
 
     const promptIdx = rest.findIndex(
-        m => m.role === 'system' && m.content === AI_SYSTEM_PROMPT
+        (m) => m.role === 'system' && m.content === AI_SYSTEM_PROMPT
     )
 
     if (promptIdx === -1) {

@@ -24,7 +24,9 @@ export async function draftCommitMessage(diff: string, settings: Settings) {
 
     const info = await getActiveProviderAPIKey(settings)
     if (!info?.apiKey) {
-        throw new Error('No AI provider configured for commit message drafting.')
+        throw new Error(
+            'No AI provider configured for commit message drafting.'
+        )
     }
 
     const provider: AIProviderConfig = {

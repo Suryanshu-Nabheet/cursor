@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Codicon } from './codicon'
 import { useAppDispatch, useAppSelector } from '../app/hooks'
-import {
-    getRootPath,
-    getCurrentFileId,
-} from '../features/selectors'
+import { getRootPath, getCurrentFileId } from '../features/selectors'
 import { getSettings } from '../features/settings/settingsSelectors'
 import {
     getInlineCompletionLastError,
@@ -14,10 +11,7 @@ import { getLanguageFromFilename } from '../features/extensions/utils'
 import { getActiveTabId } from '../features/window/paneUtils'
 import { getCodeMirrorView } from '../features/codemirror/codemirrorSlice'
 import { getDiagnostics, lintState } from '../features/linter/lint'
-import {
-    openGit,
-    expandLeftSide,
-} from '../features/tools/toolSlice'
+import { openGit, expandLeftSide } from '../features/tools/toolSlice'
 import { setSettingsTab } from '../features/settings/settingsSlice'
 import type { FullState } from '../features/window/state'
 
@@ -243,8 +237,8 @@ export const StatusBar = () => {
                             problems.errors > 0
                                 ? 'error'
                                 : problems.warnings > 0
-                                  ? 'warning'
-                                  : 'check'
+                                ? 'warning'
+                                : 'check'
                         }
                         style={{
                             marginRight: 6,
@@ -253,8 +247,8 @@ export const StatusBar = () => {
                                 problems.errors > 0
                                     ? 'var(--color-error)'
                                     : problems.warnings > 0
-                                      ? 'var(--color-warning)'
-                                      : 'var(--color-success)',
+                                    ? 'var(--color-warning)'
+                                    : 'var(--color-success)',
                         }}
                     />
                     <span>{totalProblems}</span>

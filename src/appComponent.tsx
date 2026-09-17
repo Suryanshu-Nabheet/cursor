@@ -63,7 +63,8 @@ export function App() {
 
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
-            const isPlatformMod = connector.PLATFORM_CM_KEY === 'Ctrl' ? e.ctrlKey : e.metaKey
+            const isPlatformMod =
+                connector.PLATFORM_CM_KEY === 'Ctrl' ? e.ctrlKey : e.metaKey
             const isCmd = e.metaKey
             const isCtrl = e.ctrlKey
 
@@ -138,20 +139,30 @@ export function App() {
                         const isTextareaFocused =
                             activeEl &&
                             (activeEl.tagName === 'TEXTAREA' ||
-                                Boolean(activeEl.closest('.app__rightsidebarwrapper')))
+                                Boolean(
+                                    activeEl.closest(
+                                        '.app__rightsidebarwrapper'
+                                    )
+                                ))
 
-                        if (isTextareaFocused && (!selectedText || !selectedText.trim())) {
+                        if (
+                            isTextareaFocused &&
+                            (!selectedText || !selectedText.trim())
+                        ) {
                             // Already in chat input without selection -> toggle closed
                             dispatch(ts.triggerAICommandPalette())
                         } else {
                             // Focus the textarea in the open AI sidebar
-                            const textarea = document.querySelector<HTMLTextAreaElement>(
-                                '.app__rightsidebarwrapper textarea'
-                            )
+                            const textarea =
+                                document.querySelector<HTMLTextAreaElement>(
+                                    '.app__rightsidebarwrapper textarea'
+                                )
                             if (textarea) {
                                 if (selectedText && selectedText.trim()) {
                                     textarea.value = selectedText.trim()
-                                    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+                                    textarea.dispatchEvent(
+                                        new Event('input', { bubbles: true })
+                                    )
                                 }
                                 textarea.focus()
                             } else {
@@ -254,7 +265,13 @@ export function App() {
                 }
             }
         },
-        [dispatch, commandBarOpen, commandPaletteOpen, screenState, aiSidebarOpen]
+        [
+            dispatch,
+            commandBarOpen,
+            commandPaletteOpen,
+            screenState,
+            aiSidebarOpen,
+        ]
     )
 
     useEffect(() => {
@@ -356,7 +373,9 @@ export function App() {
 
     return (
         <>
-            {commandBarOpen && screenState !== 'welcome' && <CommandBar parentCaller={'commandBar'} />}
+            {commandBarOpen && screenState !== 'welcome' && (
+                <CommandBar parentCaller={'commandBar'} />
+            )}
             <TitleBar
                 titleHeight={titleHeight}
                 useButtons={screenState === 'normal'}

@@ -93,7 +93,9 @@ const aiCommands: { [key in AICommandIds]: AICommand } = {
         shortcut: [commandKey + 'K'],
         icon: '✦',
         category: 'AI',
-        action: (dispatch: any) => { dispatch(pressAICommand('k')) },
+        action: (dispatch: any) => {
+            dispatch(pressAICommand('k'))
+        },
     },
     generate: {
         id: 'generate',
@@ -105,7 +107,9 @@ const aiCommands: { [key in AICommandIds]: AICommand } = {
         shortcut: [commandKey + 'K'],
         icon: '✦',
         category: 'AI',
-        action: (dispatch: any) => { dispatch(pressAICommand('k')) },
+        action: (dispatch: any) => {
+            dispatch(pressAICommand('k'))
+        },
     },
     freeform: {
         id: 'freeform',
@@ -118,7 +122,9 @@ const aiCommands: { [key in AICommandIds]: AICommand } = {
         shortcut: [commandKey + 'L'],
         icon: '✦',
         category: 'AI',
-        action: (dispatch: any) => { dispatch(ts.triggerAICommandPalette()) },
+        action: (dispatch: any) => {
+            dispatch(ts.triggerAICommandPalette())
+        },
     },
     freeform_select: {
         id: 'freeform_select',
@@ -130,7 +136,9 @@ const aiCommands: { [key in AICommandIds]: AICommand } = {
         shortcut: [commandKey + 'L'],
         icon: '✦',
         category: 'AI',
-        action: (dispatch: any) => { dispatch(ts.triggerAICommandPalette()) },
+        action: (dispatch: any) => {
+            dispatch(ts.triggerAICommandPalette())
+        },
     },
 }
 
@@ -142,7 +150,9 @@ const splitPaneCommands: { [key in splitPaneCommandIds]: Command } = {
         description: 'Split the current pane to the right',
         icon: '⊞',
         category: 'View',
-        action: (dispatch: any) => { dispatch(splitCurrentPane(HoverState.Right)) },
+        action: (dispatch: any) => {
+            dispatch(splitCurrentPane(HoverState.Right))
+        },
     },
     splitPaneDown: {
         id: 'splitPaneDown',
@@ -151,7 +161,9 @@ const splitPaneCommands: { [key in splitPaneCommandIds]: Command } = {
         description: 'Split the current pane downwards',
         icon: '⊟',
         category: 'View',
-        action: (dispatch: any) => { dispatch(splitCurrentPane(HoverState.Bottom)) },
+        action: (dispatch: any) => {
+            dispatch(splitCurrentPane(HoverState.Bottom))
+        },
     },
     splitPaneLeft: {
         id: 'splitPaneLeft',
@@ -160,7 +172,9 @@ const splitPaneCommands: { [key in splitPaneCommandIds]: Command } = {
         description: 'Split the current pane to the left',
         icon: '⊞',
         category: 'View',
-        action: (dispatch: any) => { dispatch(splitCurrentPane(HoverState.Left)) },
+        action: (dispatch: any) => {
+            dispatch(splitCurrentPane(HoverState.Left))
+        },
     },
     splitPaneUp: {
         id: 'splitPaneUp',
@@ -169,7 +183,9 @@ const splitPaneCommands: { [key in splitPaneCommandIds]: Command } = {
         description: 'Split the current pane upwards',
         icon: '⊟',
         category: 'View',
-        action: (dispatch: any) => { dispatch(splitCurrentPane(HoverState.Top)) },
+        action: (dispatch: any) => {
+            dispatch(splitCurrentPane(HoverState.Top))
+        },
     },
 }
 
@@ -182,7 +198,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         shortcut: [commandKey + 'J', 'Ctrl+`'],
         icon: '>_',
         category: 'Terminal',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(toggleTerminal()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(toggleTerminal())
+        },
     },
     ssh: {
         id: 'ssh',
@@ -191,7 +209,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         description: 'Open a remote folder over ssh',
         icon: '⇄',
         category: 'Remote',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(openRemotePopup()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(openRemotePopup())
+        },
     },
     chatHistory: {
         id: 'chatHistory',
@@ -200,7 +220,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         description: 'Shows past chat conversations',
         icon: '◷',
         category: 'AI',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(toggleChatHistory()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(toggleChatHistory())
+        },
     },
     search: {
         id: 'search',
@@ -210,7 +232,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         shortcut: [commandKey + 'Shift+F'],
         icon: '⌕',
         category: 'Search',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(openSearch()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(openSearch())
+        },
     },
     searchFiles: {
         id: 'searchFiles',
@@ -220,7 +244,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         shortcut: [commandKey + 'P'],
         icon: '⊡',
         category: 'File',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(triggerFileSearch()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(triggerFileSearch())
+        },
     },
     settings: {
         id: 'settings',
@@ -230,7 +256,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         shortcut: [commandKey + ','],
         icon: '⚙',
         category: 'Preferences',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(toggleSettings()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(toggleSettings())
+        },
     },
     fileTree: {
         id: 'fileTree',
@@ -239,7 +267,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         description: 'Open the file tree',
         icon: '⊡',
         category: 'View',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(openFileTree()) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(openFileTree())
+        },
     },
     feedback: {
         id: 'feedback',
@@ -248,7 +278,9 @@ const mainCommands: { [key in MainCommandIds]: Command } = {
         description: 'Open the feedback form',
         icon: '✉',
         category: 'Help',
-        action: (dispatch: Dispatch<AnyAction>) => { dispatch(toggleFeedback(null)) },
+        action: (dispatch: Dispatch<AnyAction>) => {
+            dispatch(toggleFeedback(null))
+        },
     },
 }
 
@@ -264,7 +296,9 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
             <>
                 {parts.map((part, i) =>
                     part.toLowerCase() === query.toLowerCase() ? (
-                        <mark key={i} className="qo-highlight">{part}</mark>
+                        <mark key={i} className="qo-highlight">
+                            {part}
+                        </mark>
                     ) : (
                         <span key={i}>{part}</span>
                     )
@@ -280,9 +314,13 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 
 export default function CommandPalettes() {
     const dispatch = useAppDispatch()
-    const commandPaletteTriggeredFocus = useAppSelector(commandPaletteTriggeredSelector)
+    const commandPaletteTriggeredFocus = useAppSelector(
+        commandPaletteTriggeredSelector
+    )
     const rootPath = useAppSelector((state: any) => state.global?.rootPath)
-    const welcomeDismissed = useAppSelector((state: any) => state.global?.welcomeDismissed)
+    const welcomeDismissed = useAppSelector(
+        (state: any) => state.global?.welcomeDismissed
+    )
     const isWelcomeScreen = (!rootPath || rootPath === '') && !welcomeDismissed
 
     const commandPaletteCloseTrigger = useCallback(
@@ -357,11 +395,7 @@ const useAIResults = () => {
 // ─── Section header for grouping ─────────────────────────────────────────────
 
 function SectionHeader({ label }: { label: string }) {
-    return (
-        <div className="qo-section-header">
-            {label}
-        </div>
-    )
+    return <div className="qo-section-header">{label}</div>
 }
 
 // ─── Inner Command Palette ────────────────────────────────────────────────────
@@ -455,7 +489,8 @@ export function InnerCommandPalette({
             if (e.key === 'Enter') {
                 e.preventDefault()
                 if (filteredResults[selectedIndex]) {
-                    const selectedCommand = allCommands[filteredResults[selectedIndex].id]
+                    const selectedCommand =
+                        allCommands[filteredResults[selectedIndex].id]
 
                     if (
                         (selectedCommand.id === 'freeform' ||
@@ -476,10 +511,14 @@ export function InnerCommandPalette({
             }
             if (e.key === 'ArrowDown') {
                 e.preventDefault()
-                setSelectedIndex(selectedIndex < lastIndex ? selectedIndex + 1 : 0)
+                setSelectedIndex(
+                    selectedIndex < lastIndex ? selectedIndex + 1 : 0
+                )
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault()
-                setSelectedIndex(selectedIndex <= 0 ? lastIndex : selectedIndex - 1)
+                setSelectedIndex(
+                    selectedIndex <= 0 ? lastIndex : selectedIndex - 1
+                )
             } else if (e.key === 'Escape') {
                 e.preventDefault()
                 close()
@@ -490,20 +529,31 @@ export function InnerCommandPalette({
 
     // Group results by category for display
     const groupedResults = useMemo(() => {
-        const groups: { label: string; items: { id: CommandIds; clickable: boolean | null; index: number }[] }[] = []
+        const groups: {
+            label: string
+            items: {
+                id: CommandIds
+                clickable: boolean | null
+                index: number
+            }[]
+        }[] = []
         let globalIndex = 0
 
         // AI commands first
-        const aiItems = filteredResults.filter(r => allCommands[r.id].type === 'ai')
+        const aiItems = filteredResults.filter(
+            (r) => allCommands[r.id].type === 'ai'
+        )
         if (aiItems.length > 0) {
             groups.push({
                 label: 'AI',
-                items: aiItems.map(r => ({ ...r, index: globalIndex++ }))
+                items: aiItems.map((r) => ({ ...r, index: globalIndex++ })),
             })
         }
 
         // Normal commands grouped
-        const normalItems = filteredResults.filter(r => allCommands[r.id].type !== 'ai')
+        const normalItems = filteredResults.filter(
+            (r) => allCommands[r.id].type !== 'ai'
+        )
         if (normalItems.length > 0) {
             // Group by category
             const categoryMap = new Map<string, typeof normalItems>()
@@ -515,7 +565,7 @@ export function InnerCommandPalette({
             for (const [cat, items] of categoryMap) {
                 groups.push({
                     label: cat,
-                    items: items.map(r => ({ ...r, index: globalIndex++ }))
+                    items: items.map((r) => ({ ...r, index: globalIndex++ })),
                 })
             }
         }
@@ -555,7 +605,9 @@ export function InnerCommandPalette({
                             <Combobox.Input
                                 className="qo-input"
                                 placeholder="Type a command..."
-                                displayValue={(command: Command) => command?.name ?? ''}
+                                displayValue={(command: Command) =>
+                                    command?.name ?? ''
+                                }
                                 onChange={(event: any) => {
                                     setQuery(event.target.value)
                                     setSelectedIndex(0)
@@ -592,39 +644,52 @@ export function InnerCommandPalette({
                             {filteredResults.length === 0 ? (
                                 <div className="qo-empty-state">
                                     <span className="qo-empty-icon">⊘</span>
-                                    <span>No commands found for &ldquo;{query}&rdquo;</span>
+                                    <span>
+                                        No commands found for &ldquo;{query}
+                                        &rdquo;
+                                    </span>
                                 </div>
                             ) : (
                                 groupedResults.map((group) => (
                                     <div key={group.label} className="qo-group">
                                         <SectionHeader label={group.label} />
-                                        {group.items.map(({ id, clickable, index }) => {
-                                            const command = allCommands[id]
-                                            if (clickable === null) {
-                                                return (
-                                                    <CommandResult
-                                                        key={command.id}
-                                                        dataTestId={`command-item-${index}`}
-                                                        command={command}
-                                                        query={query}
-                                                        closeTrigger={close}
-                                                        isSelected={index === selectedIndex}
-                                                    />
-                                                )
-                                            } else {
-                                                return (
-                                                    <AICommandResult
-                                                        key={command.id}
-                                                        dataTestId={`command-item-${index}`}
-                                                        command={command}
-                                                        query={query}
-                                                        isClickable={clickable}
-                                                        closeTrigger={close}
-                                                        isSelected={index === selectedIndex}
-                                                    />
-                                                )
+                                        {group.items.map(
+                                            ({ id, clickable, index }) => {
+                                                const command = allCommands[id]
+                                                if (clickable === null) {
+                                                    return (
+                                                        <CommandResult
+                                                            key={command.id}
+                                                            dataTestId={`command-item-${index}`}
+                                                            command={command}
+                                                            query={query}
+                                                            closeTrigger={close}
+                                                            isSelected={
+                                                                index ===
+                                                                selectedIndex
+                                                            }
+                                                        />
+                                                    )
+                                                } else {
+                                                    return (
+                                                        <AICommandResult
+                                                            key={command.id}
+                                                            dataTestId={`command-item-${index}`}
+                                                            command={command}
+                                                            query={query}
+                                                            isClickable={
+                                                                clickable
+                                                            }
+                                                            closeTrigger={close}
+                                                            isSelected={
+                                                                index ===
+                                                                selectedIndex
+                                                            }
+                                                        />
+                                                    )
+                                                }
                                             }
-                                        })}
+                                        )}
                                     </div>
                                 ))
                             )}
@@ -634,7 +699,8 @@ export function InnerCommandPalette({
                     {/* Footer */}
                     <div className="qo-footer">
                         <span className="qo-footer-hint">
-                            <kbd>↑</kbd><kbd>↓</kbd> Navigate
+                            <kbd>↑</kbd>
+                            <kbd>↓</kbd> Navigate
                         </span>
                         <span className="qo-footer-hint">
                             <kbd>↵</kbd> Execute
@@ -692,7 +758,9 @@ export function CommandResult({
             )}
             <span className="qo-item-shortcuts">
                 {command.shortcut?.map((key, index) => (
-                    <kbd key={index} className="qo-kbd">{key}</kbd>
+                    <kbd key={index} className="qo-kbd">
+                        {key}
+                    </kbd>
                 ))}
             </span>
         </div>
@@ -731,7 +799,9 @@ export function AICommandResult({
 
     return (
         <div
-            className={`qo-item qo-item--ai${isSelected ? ' qo-item--selected' : ''}${!isClickable ? ' qo-item--disabled' : ''}`}
+            className={`qo-item qo-item--ai${
+                isSelected ? ' qo-item--selected' : ''
+            }${!isClickable ? ' qo-item--disabled' : ''}`}
             data-test-id={dataTestId}
             onMouseDown={isClickable ? executeCommand : undefined}
         >
@@ -742,13 +812,13 @@ export function AICommandResult({
                 <HighlightMatch text={command.name} query={query} />
             </span>
             <span className="qo-item-desc">
-                {isClickable
-                    ? (command.hint ?? '')
-                    : (command.error ?? '')}
+                {isClickable ? command.hint ?? '' : command.error ?? ''}
             </span>
             <span className="qo-item-shortcuts">
                 {command.shortcut?.map((key, index) => (
-                    <kbd key={index} className="qo-kbd">{key}</kbd>
+                    <kbd key={index} className="qo-kbd">
+                        {key}
+                    </kbd>
                 ))}
             </span>
         </div>

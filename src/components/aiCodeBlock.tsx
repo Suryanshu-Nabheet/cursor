@@ -97,7 +97,10 @@ export function CodeBlock({
                 c: 'c',
             }
             const resolvedLang = langMap[normalizedLang] || normalizedLang
-            const grammar = Prism.languages[resolvedLang] || Prism.languages.typescript || Prism.languages.plaintext
+            const grammar =
+                Prism.languages[resolvedLang] ||
+                Prism.languages.typescript ||
+                Prism.languages.plaintext
             if (!grammar) return escapeHtml(code)
             return Prism.highlight(code, grammar, resolvedLang)
         } catch (e) {
@@ -116,19 +119,31 @@ export function CodeBlock({
                     <span className="code-block-lang-badge">{displayLang}</span>
                     {filename && (
                         <span className="code-block-filename">
-                            <Codicon name="file" style={{ fontSize: '10px', marginRight: '4px' }} />
+                            <Codicon
+                                name="file"
+                                style={{ fontSize: '10px', marginRight: '4px' }}
+                            />
                             {filename}
                         </span>
                     )}
-                    <span className="code-block-line-count">{lines.length} line{lines.length !== 1 ? 's' : ''}</span>
+                    <span className="code-block-line-count">
+                        {lines.length} line{lines.length !== 1 ? 's' : ''}
+                    </span>
                 </div>
                 <div className="code-block-actions">
                     <button
                         className="code-block-action-btn"
                         onClick={() => setLinesVisible(!linesVisible)}
-                        title={linesVisible ? 'Hide line numbers' : 'Show line numbers'}
+                        title={
+                            linesVisible
+                                ? 'Hide line numbers'
+                                : 'Show line numbers'
+                        }
                     >
-                        <Codicon name="list-ordered" style={{ fontSize: '11px' }} />
+                        <Codicon
+                            name="list-ordered"
+                            style={{ fontSize: '11px' }}
+                        />
                     </button>
                     {onApply && (
                         <button
@@ -136,7 +151,10 @@ export function CodeBlock({
                             onClick={onApply}
                             title="Apply to file"
                         >
-                            <Codicon name="check" style={{ fontSize: '12px' }} />
+                            <Codicon
+                                name="check"
+                                style={{ fontSize: '12px' }}
+                            />
                             Apply
                         </button>
                     )}
@@ -145,7 +163,10 @@ export function CodeBlock({
                         onClick={handleCopy}
                         title="Copy code"
                     >
-                        <Codicon name={copied ? 'check' : 'copy'} style={{ fontSize: '12px' }} />
+                        <Codicon
+                            name={copied ? 'check' : 'copy'}
+                            style={{ fontSize: '12px' }}
+                        />
                         {copied ? 'Copied!' : 'Copy'}
                     </button>
                 </div>
@@ -259,16 +280,27 @@ export function ToolCallCard({
     }
 
     const getToolLabel = (name: string, args: Record<string, any>) => {
-        if (name === 'read_file' || name === 'write_file' || name === 'edit_file') {
-            const path = args.TargetPath || args.TargetFile || args.path || args.filename
+        if (
+            name === 'read_file' ||
+            name === 'write_file' ||
+            name === 'edit_file'
+        ) {
+            const path =
+                args.TargetPath || args.TargetFile || args.path || args.filename
             if (path) {
                 const parts = path.split('/')
                 const filename = parts[parts.length - 1]
-                const action = name.includes('read') ? 'Read' : name.includes('write') ? 'Write' : 'Edit'
+                const action = name.includes('read')
+                    ? 'Read'
+                    : name.includes('write')
+                    ? 'Write'
+                    : 'Edit'
                 return (
                     <span className="flex items-center gap-1.5 text-[12px]">
                         <span className="text-ui-fg-muted">{action}</span>
-                        <span className="text-ui-fg font-medium">{filename}</span>
+                        <span className="text-ui-fg font-medium">
+                            {filename}
+                        </span>
                     </span>
                 )
             }
@@ -287,7 +319,10 @@ export function ToolCallCard({
                 <span className="flex items-center gap-1.5 text-[12px]">
                     <span className="text-ui-fg-muted">Run</span>
                     <span className="text-ui-fg font-medium font-mono text-[11px] opacity-80">
-                        {(args.command || args.CommandLine || 'command').slice(0, 50)}
+                        {(args.command || args.CommandLine || 'command').slice(
+                            0,
+                            50
+                        )}
                     </span>
                 </span>
             )
@@ -296,7 +331,10 @@ export function ToolCallCard({
         return (
             <span className="flex items-center gap-1.5 text-[12px]">
                 <span className="text-ui-fg-muted">
-                    {name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                    {name
+                        .split('_')
+                        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ')}
                 </span>
             </span>
         )
@@ -314,7 +352,9 @@ export function ToolCallCard({
                 className="flex items-center px-3 py-1.5 cursor-pointer min-h-[28px] gap-2"
                 onClick={() => setIsExpanded(!isExpanded)}
             >
-                <span className={`text-[14px] w-5 flex items-center justify-center ${getToolStatusColor()}`}>
+                <span
+                    className={`text-[14px] w-5 flex items-center justify-center ${getToolStatusColor()}`}
+                >
                     {getToolIcon(toolName)}
                 </span>
 
@@ -322,16 +362,24 @@ export function ToolCallCard({
 
                 <div className="ml-auto flex items-center gap-3">
                     {needsApproval && !isExecuting && (
-                        <span className="text-ui-fg-muted text-[10px] font-medium border border-ui-border bg-ui-bg-elevated px-1.5 py-0.5 rounded">Review</span>
+                        <span className="text-ui-fg-muted text-[10px] font-medium border border-ui-border bg-ui-bg-elevated px-1.5 py-0.5 rounded">
+                            Review
+                        </span>
                     )}
                     {isPending && !isExecuting && (
                         <div className="text-ui-fg-muted text-[10px]">
-                            <Codicon name="loading" className="codicon-modifier-spin" />
+                            <Codicon
+                                name="loading"
+                                className="codicon-modifier-spin"
+                            />
                         </div>
                     )}
                     {isExecuting && (
                         <div className="text-ui-fg-muted text-[10px]">
-                            <Codicon name="loading" className="codicon-modifier-spin" />
+                            <Codicon
+                                name="loading"
+                                className="codicon-modifier-spin"
+                            />
                         </div>
                     )}
                     {success === true && (
@@ -345,7 +393,9 @@ export function ToolCallCard({
                         </div>
                     )}
                     <button className="bg-transparent border-none p-0.5 text-ui-fg-muted opacity-30 text-[10px] flex items-center hover:opacity-100 hover:bg-ui-hover rounded cursor-pointer transition-all">
-                        <Codicon name={isExpanded ? 'chevron-up' : 'chevron-down'} />
+                        <Codicon
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                        />
                     </button>
                 </div>
             </div>
@@ -354,12 +404,17 @@ export function ToolCallCard({
                 <div className="pt-1 pb-3 pl-10 pr-3 border-l border-ui-border ml-[21px]">
                     {warning && (
                         <div className="mb-2 p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-start gap-1.5">
-                            <Codicon name="warning" className="text-amber-400 mt-0.5 shrink-0" />
+                            <Codicon
+                                name="warning"
+                                className="text-amber-400 mt-0.5 shrink-0"
+                            />
                             <span>{warning}</span>
                         </div>
                     )}
                     <div className="mb-2">
-                        <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">Arguments</div>
+                        <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">
+                            Arguments
+                        </div>
                         <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">
                             {argumentsRaw || JSON.stringify(args, null, 2)}
                         </pre>
@@ -367,8 +422,12 @@ export function ToolCallCard({
 
                     {result && (
                         <div className="mb-2">
-                            <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">Result</div>
-                            <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">{result}</pre>
+                            <div className="text-[10px] font-semibold text-ui-fg-muted mb-1 uppercase tracking-wide">
+                                Result
+                            </div>
+                            <pre className="bg-ui-bg-elevated border border-ui-border rounded-md px-3 py-2 font-mono text-[11px] text-ui-fg overflow-x-auto m-0">
+                                {result}
+                            </pre>
                         </div>
                     )}
 
@@ -437,14 +496,22 @@ export interface TodoItem {
     completed: boolean
 }
 
-export function TodosCard({ todos, onToggle }: { todos: TodoItem[]; onToggle?: (id: string) => void }) {
+export function TodosCard({
+    todos,
+    onToggle,
+}: {
+    todos: TodoItem[]
+    onToggle?: (id: string) => void
+}) {
     const [collapsed, setCollapsed] = useState(false)
     if (!todos || todos.length === 0) return null
 
-    const completedCount = todos.filter(t => t.completed).length
+    const completedCount = todos.filter((t) => t.completed).length
     const isAllDone = completedCount === todos.length
-    const headerTitle = isAllDone ? `${completedCount} of ${todos.length} Done` : `To-dos ${todos.length}`
-    const activeIndex = todos.findIndex(t => !t.completed)
+    const headerTitle = isAllDone
+        ? `${completedCount} of ${todos.length} Done`
+        : `To-dos ${todos.length}`
+    const activeIndex = todos.findIndex((t) => !t.completed)
 
     return (
         <div className="my-2.5 rounded-xl border border-[var(--ui-border)] bg-[var(--sidebar)] overflow-hidden shadow-sm transition-all">
@@ -452,10 +519,17 @@ export function TodosCard({ todos, onToggle }: { todos: TodoItem[]; onToggle?: (
                 className="flex items-center gap-2 px-3.5 py-2.5 cursor-pointer select-none border-b border-[var(--ui-border)] hover:bg-[var(--ui-hover)] transition-colors"
                 onClick={() => setCollapsed(!collapsed)}
             >
-                <Codicon name="checklist" style={{ fontSize: 13, color: 'var(--accent)' }} />
-                <span className="text-[12px] font-bold text-[var(--ui-fg)] tracking-wide">{headerTitle}</span>
+                <Codicon
+                    name="checklist"
+                    style={{ fontSize: 13, color: 'var(--accent)' }}
+                />
+                <span className="text-[12px] font-bold text-[var(--ui-fg)] tracking-wide">
+                    {headerTitle}
+                </span>
                 {completedCount > 0 && !isAllDone && (
-                    <span className="text-[11px] font-mono text-[var(--ui-fg-muted)] opacity-70 ml-1">{completedCount} of {todos.length} Done</span>
+                    <span className="text-[11px] font-mono text-[var(--ui-fg-muted)] opacity-70 ml-1">
+                        {completedCount} of {todos.length} Done
+                    </span>
                 )}
                 <Codicon
                     name={collapsed ? 'chevron-right' : 'chevron-down'}
@@ -479,23 +553,38 @@ export function TodosCard({ todos, onToggle }: { todos: TodoItem[]; onToggle?: (
                                 <span className="mt-0.5 shrink-0 flex items-center justify-center">
                                     {todo.completed ? (
                                         <div className="w-4 h-4 rounded-full bg-[var(--accent)] text-white flex items-center justify-center">
-                                            <Codicon name="check" style={{ fontSize: 9 }} />
+                                            <Codicon
+                                                name="check"
+                                                style={{ fontSize: 9 }}
+                                            />
                                         </div>
                                     ) : (
-                                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
-                                            isActive ? 'border-[var(--accent)] bg-[var(--ui-bg-elevated)]' : 'border-[var(--ui-border)] bg-transparent'
-                                        }`}>
-                                            <div className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-[var(--accent)]' : 'transparent'}`} />
+                                        <div
+                                            className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${
+                                                isActive
+                                                    ? 'border-[var(--accent)] bg-[var(--ui-bg-elevated)]'
+                                                    : 'border-[var(--ui-border)] bg-transparent'
+                                            }`}
+                                        >
+                                            <div
+                                                className={`w-1.5 h-1.5 rounded-full ${
+                                                    isActive
+                                                        ? 'bg-[var(--accent)]'
+                                                        : 'transparent'
+                                                }`}
+                                            />
                                         </div>
                                     )}
                                 </span>
-                                <span className={`text-[13px] leading-snug transition-all ${
-                                    todo.completed
-                                        ? 'line-through text-[var(--ui-fg-muted)] opacity-50'
-                                        : isActive
+                                <span
+                                    className={`text-[13px] leading-snug transition-all ${
+                                        todo.completed
+                                            ? 'line-through text-[var(--ui-fg-muted)] opacity-50'
+                                            : isActive
                                             ? 'text-[var(--ui-fg)] font-semibold'
                                             : 'text-[var(--ui-fg)] font-normal'
-                                }`}>
+                                    }`}
+                                >
                                     {todo.text}
                                 </span>
                             </div>
@@ -512,7 +601,11 @@ export function PlanCard({ planMarkdown }: { planMarkdown: string }) {
     if (!planMarkdown) return null
     return (
         <div className="plan-card">
-            <div className="plan-header" onClick={() => setCollapsed(!collapsed)} style={{ cursor: 'pointer', userSelect: 'none' }}>
+            <div
+                className="plan-header"
+                onClick={() => setCollapsed(!collapsed)}
+                style={{ cursor: 'pointer', userSelect: 'none' }}
+            >
                 <Codicon
                     name="list-ordered"
                     style={{ marginRight: '8px', fontSize: '12px' }}
@@ -520,7 +613,11 @@ export function PlanCard({ planMarkdown }: { planMarkdown: string }) {
                 EXECUTION PLAN
                 <Codicon
                     name={collapsed ? 'chevron-right' : 'chevron-down'}
-                    style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.6 }}
+                    style={{
+                        marginLeft: 'auto',
+                        fontSize: '10px',
+                        opacity: 0.6,
+                    }}
                 />
             </div>
             {!collapsed && (

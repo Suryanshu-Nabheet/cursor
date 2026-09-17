@@ -32,7 +32,9 @@ export function Codicon({
     const spinClass = spin ? ' codicon-modifier-spin' : ''
     return (
         <i
-            className={`codicon codicon-${name}${spinClass}${className ? ' ' + className : ''}`}
+            className={`codicon codicon-${name}${spinClass}${
+                className ? ' ' + className : ''
+            }`}
             style={style}
             title={title}
             aria-hidden="true"

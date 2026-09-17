@@ -195,7 +195,10 @@ function SearchComponent() {
         [rootPath]
     )
 
-    const replaceInFiles = async (filePaths: string[], limitPerFile?: number) => {
+    const replaceInFiles = async (
+        filePaths: string[],
+        limitPerFile?: number
+    ) => {
         if (!query || filePaths.length === 0) return
         setReplaceStatus('')
         let changedFiles = 0
@@ -228,7 +231,9 @@ function SearchComponent() {
 
         setReplaceStatus(
             changedMatches > 0
-                ? `Replaced ${changedMatches} match${changedMatches === 1 ? '' : 'es'} in ${changedFiles} file${changedFiles === 1 ? '' : 's'}.`
+                ? `Replaced ${changedMatches} match${
+                      changedMatches === 1 ? '' : 'es'
+                  } in ${changedFiles} file${changedFiles === 1 ? '' : 's'}.`
                 : 'No replacements applied.'
         )
         await handleSearch(query, matchCase)

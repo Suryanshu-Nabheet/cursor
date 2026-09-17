@@ -30,8 +30,7 @@ export const resolveWorkspacePath = (
 
     const cleanRoot = rootPath.replace(/[/\\]+$/, '')
     const isAbsolute =
-        targetPath.startsWith('/') ||
-        /^[a-zA-Z]:[/\\]/.test(targetPath)
+        targetPath.startsWith('/') || /^[a-zA-Z]:[/\\]/.test(targetPath)
 
     let candidate: string
     if (isAbsolute) {
@@ -103,10 +102,20 @@ export function isExternalPathAction(
 export function isRiskyTerminalCommand(command: string): boolean {
     const trimmed = (command || '').trim()
     if (!trimmed) return false
-    if (/\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f*|-f[a-zA-Z]*r[a-zA-Z]*)\s+[/~]/i.test(trimmed)) return true
+    if (
+        /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f*|-f[a-zA-Z]*r[a-zA-Z]*)\s+[/~]/i.test(
+            trimmed
+        )
+    )
+        return true
     if (/\bsudo\b/i.test(trimmed)) return true
     if (/\b(mkfs|dd\s+if=)/i.test(trimmed)) return true
-    if (/\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?(777|a\+[rwx]+)\s+[/~]/i.test(trimmed)) return true
+    if (
+        /\bchmod\s+(-[a-zA-Z]*R[a-zA-Z]*\s+)?(777|a\+[rwx]+)\s+[/~]/i.test(
+            trimmed
+        )
+    )
+        return true
     if (/\b(shutdown|reboot)\b/i.test(trimmed)) return true
     if (/:\(\)\s*\{\s*:\|:&\s*\};:/i.test(trimmed)) return true
     return false
@@ -393,11 +402,7 @@ async function runCommandCaptured(
             isResolved = true
             const cleanOutput = output.replace(ANSI_ESCAPE_PATTERN, '')
             cleanup()
-            reject(
-                new Error(
-                    `Command aborted by user.\n${cleanOutput}`.trim()
-                )
-            )
+            reject(new Error(`Command aborted by user.\n${cleanOutput}`.trim()))
         }
 
         const onAbort = () => settleAbort()
@@ -420,7 +425,9 @@ async function runCommandCaptured(
                 const cleanOutput = output.replace(ANSI_ESCAPE_PATTERN, '')
                 const truncated =
                     cleanOutput.length > MAX_TOOL_OUTPUT_CHARS
-                        ? `${cleanOutput.slice(-MAX_TOOL_OUTPUT_CHARS)}\n[Output truncated to last ${MAX_TOOL_OUTPUT_CHARS} characters]`
+                        ? `${cleanOutput.slice(
+                              -MAX_TOOL_OUTPUT_CHARS
+                          )}\n[Output truncated to last ${MAX_TOOL_OUTPUT_CHARS} characters]`
                         : cleanOutput
                 resolve({
                     output: `${truncated}\n[exit code: ${data.exitCode}]`,
@@ -440,12 +447,14 @@ async function runCommandCaptured(
         // Wait slightly for init
         startupTimer = setTimeout(() => {
             // Run command then exit to close the terminal and trigger onExit
-            connector.terminalInto(termId, `${command}; exit\n`).catch((error: any) => {
-                if (isResolved) return
-                isResolved = true
-                cleanup()
-                reject(error)
-            })
+            connector
+                .terminalInto(termId, `${command}; exit\n`)
+                .catch((error: any) => {
+                    if (isResolved) return
+                    isResolved = true
+                    cleanup()
+                    reject(error)
+                })
         }, 50)
     })
 }

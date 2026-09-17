@@ -26,7 +26,13 @@ jobs:
         runs-on: ${{matrix.os}}
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 18
+                  cache: 'npm'
 
             - name: Setup macOS/linux
               if: ${{ matrix.os != 'windows-latest' }}
@@ -41,12 +47,16 @@ jobs:
               if: ${{ matrix.os != 'windows-latest' }}
               run: npm run format-check
 
+            - name: Run tests
+              run: npm test
+
             - name: Package
               run: npm run package
               timeout-minutes: 30
 
             - name: Upload artifacts
-              uses: actions/upload-artifact@v3
+              uses: actions/upload-artifact@v4
               with:
                   name: ${{ matrix.os }}-binary
                   path: out
+                  if-no-files-found: ignore

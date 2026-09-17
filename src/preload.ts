@@ -432,8 +432,11 @@ const electronConnector = {
         ipcRenderer.invoke('git_config_get', { rootPath, key }),
     gitConfigSet: (rootPath: string, key: string, value: string) =>
         ipcRenderer.invoke('git_config_set', { rootPath, key, value }),
-    gitDiff: (rootPath: string, file?: string, mode?: 'unstaged' | 'staged' | 'head') =>
-        ipcRenderer.invoke('git_diff', { rootPath, file, mode }),
+    gitDiff: (
+        rootPath: string,
+        file?: string,
+        mode?: 'unstaged' | 'staged' | 'head'
+    ) => ipcRenderer.invoke('git_diff', { rootPath, file, mode }),
     gitStash: (rootPath: string, message?: string) =>
         ipcRenderer.invoke('git_stash', { rootPath, message }),
     gitStashPop: (rootPath: string) =>

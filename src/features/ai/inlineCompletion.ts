@@ -88,7 +88,12 @@ export function isInlineCompletionEnabled(settings: Settings): boolean {
     return getInlineCompletionStatus(settings).enabled
 }
 
-function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+function clampNumber(
+    value: unknown,
+    min: number,
+    max: number,
+    fallback: number
+) {
     const number = typeof value === 'number' ? value : Number(value)
     if (!Number.isFinite(number)) return fallback
     return Math.max(min, Math.min(max, Math.round(number)))
@@ -100,7 +105,12 @@ export function normalizeInlineCompletionOptions(
     return {
         delayMs: clampNumber(settings.inlineCompletionDelay, 120, 1500, 300),
         maxTokens: clampNumber(settings.inlineCompletionMaxTokens, 24, 160, 64),
-        timeoutMs: clampNumber((settings as any).inlineCompletionTimeoutMs, 2000, 15000, 8000),
+        timeoutMs: clampNumber(
+            (settings as any).inlineCompletionTimeoutMs,
+            2000,
+            15000,
+            8000
+        ),
     }
 }
 
@@ -185,7 +195,9 @@ export function stripAlreadyTypedPrefix(
     }
 
     const trimmedLinePrefix = context.linePrefix.trim()
-    const linePrefixWithoutIndent = context.linePrefix.slice(context.indent.length)
+    const linePrefixWithoutIndent = context.linePrefix.slice(
+        context.indent.length
+    )
 
     if (context.linePrefix.length > 0 && text.startsWith(context.linePrefix)) {
         return text.slice(context.linePrefix.length)
@@ -239,16 +251,18 @@ export function rebaseMultiLineIndentation(
     if (lines.length <= 1) return text
 
     const subsequentLines = lines.slice(1)
-    const nonEmptySubsequent = subsequentLines.filter(l => l.trim().length > 0)
+    const nonEmptySubsequent = subsequentLines.filter(
+        (l) => l.trim().length > 0
+    )
     if (nonEmptySubsequent.length === 0) return text
 
-    const indents = nonEmptySubsequent.map(l => getLeadingWhitespace(l))
-    const minIndentLen = Math.min(...indents.map(ind => ind.length))
+    const indents = nonEmptySubsequent.map((l) => getLeadingWhitespace(l))
+    const minIndentLen = Math.min(...indents.map((ind) => ind.length))
 
     // Detect whether model used 2-space or 4-space indentation steps
     const diffs = indents
-        .map(i => i.length - minIndentLen)
-        .filter(d => d > 0)
+        .map((i) => i.length - minIndentLen)
+        .filter((d) => d > 0)
     const step =
         diffs.length > 0 && Math.min(...diffs) <= 2
             ? 2
@@ -385,7 +399,7 @@ export function normalizeAutomaticCompletion(text: string): string {
     const cleaned = text
         .replace(/\r/g, '')
         .split('\n')
-        .map(line => line.trimEnd())
+        .map((line) => line.trimEnd())
         .filter((line, index) => index === 0 || line.trim().length > 0)
         .join('\n')
         .trimEnd()
@@ -596,7 +610,10 @@ class InlineCompletionService {
     }
 }
 
-function shouldStopStreaming(text: string, ctx: InlineCompletionContext): boolean {
+function shouldStopStreaming(
+    text: string,
+    ctx: InlineCompletionContext
+): boolean {
     if (!text) return false
     if (text.split('\n').length > 16) return true
     if (/\n\s*\}\s*$/.test(text) && ctx.prefix.includes('{')) return true

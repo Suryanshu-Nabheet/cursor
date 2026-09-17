@@ -108,7 +108,9 @@ export const GitPane = () => {
             }
         } catch (e) {
             console.error(e)
-            setError(e instanceof Error ? e.message : 'Failed to refresh git status.')
+            setError(
+                e instanceof Error ? e.message : 'Failed to refresh git status.'
+            )
         } finally {
             setLoading(false)
         }
@@ -169,7 +171,8 @@ export const GitPane = () => {
         try {
             // @ts-ignore
             const result = await connector.gitAdd(rootPath, file)
-            if (!result?.success) throw new Error(result?.error || 'Stage failed.')
+            if (!result?.success)
+                throw new Error(result?.error || 'Stage failed.')
             fetchGitInfo()
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Stage failed.')
@@ -181,7 +184,8 @@ export const GitPane = () => {
         try {
             // @ts-ignore
             const result = await connector.gitUnstage(rootPath, file)
-            if (!result?.success) throw new Error(result?.error || 'Unstage failed.')
+            if (!result?.success)
+                throw new Error(result?.error || 'Unstage failed.')
             fetchGitInfo()
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unstage failed.')
@@ -202,7 +206,8 @@ export const GitPane = () => {
                 file.file,
                 type === 'staged' ? 'staged' : 'unstaged'
             )
-            if (!result?.success) throw new Error(result?.error || 'Diff failed.')
+            if (!result?.success)
+                throw new Error(result?.error || 'Diff failed.')
             setSelectedDiff({
                 file: file.file,
                 type,
@@ -270,9 +275,7 @@ export const GitPane = () => {
                     <button
                         title="Refresh"
                         onClick={fetchGitInfo}
-                        className={`${
-                            loading ? 'animate-spin' : ''
-                        }`}
+                        className={`${loading ? 'animate-spin' : ''}`}
                     >
                         <FontAwesomeIcon icon={faRotateRight} />
                     </button>
@@ -326,8 +329,8 @@ export const GitPane = () => {
                             </button>
                         </div>
                         <p className="text-[10px] text-[var(--ui-fg-muted)]">
-                            AI Draft only fills the message box. It will not stage,
-                            commit, or push.
+                            AI Draft only fills the message box. It will not
+                            stage, commit, or push.
                         </p>
                         {error && (
                             <div className="text-[11px] text-[var(--color-error)]">

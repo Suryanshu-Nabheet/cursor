@@ -48,7 +48,9 @@ describe('Global IDE Shortcuts (Cmd+L, Cmd+J, Ctrl+`, etc.)', () => {
         // Mac Command+J
         expect(isTerminalKey({ key: 'j', metaKey: true })).toBe(true)
         expect(isTerminalKey({ key: 'J', metaKey: true })).toBe(true)
-        expect(isTerminalKey({ key: 'j', code: 'KeyJ', metaKey: true })).toBe(true)
+        expect(isTerminalKey({ key: 'j', code: 'KeyJ', metaKey: true })).toBe(
+            true
+        )
 
         // Mac Command+`
         expect(isTerminalKey({ key: '`', metaKey: true })).toBe(true)
@@ -58,7 +60,9 @@ describe('Global IDE Shortcuts (Cmd+L, Cmd+J, Ctrl+`, etc.)', () => {
         expect(isTerminalKey({ key: '`', ctrlKey: true })).toBe(true)
 
         // Shift+Cmd+J should not trigger toggle terminal
-        expect(isTerminalKey({ key: 'j', metaKey: true, shiftKey: true })).toBe(false)
+        expect(isTerminalKey({ key: 'j', metaKey: true, shiftKey: true })).toBe(
+            false
+        )
 
         // Normal typing 'j' should not trigger
         expect(isTerminalKey({ key: 'j' })).toBe(false)
@@ -75,20 +79,24 @@ describe('Global IDE Shortcuts (Cmd+L, Cmd+J, Ctrl+`, etc.)', () => {
             const isPlatformMod = Boolean(e.metaKey || e.ctrlKey)
             return Boolean(
                 (e.key.toLowerCase() === 'l' || e.code === 'KeyL') &&
-                !e.shiftKey &&
-                isPlatformMod
+                    !e.shiftKey &&
+                    isPlatformMod
             )
         }
 
         expect(isAiSidebarKey({ key: 'l', metaKey: true })).toBe(true)
         expect(isAiSidebarKey({ key: 'L', metaKey: true })).toBe(true)
         expect(isAiSidebarKey({ key: 'l', ctrlKey: true })).toBe(true)
-        expect(isAiSidebarKey({ key: 'l', code: 'KeyL', metaKey: true })).toBe(true)
+        expect(isAiSidebarKey({ key: 'l', code: 'KeyL', metaKey: true })).toBe(
+            true
+        )
 
         // Normal typing 'l'
         expect(isAiSidebarKey({ key: 'l' })).toBe(false)
         // Shift+Cmd+L
-        expect(isAiSidebarKey({ key: 'l', metaKey: true, shiftKey: true })).toBe(false)
+        expect(
+            isAiSidebarKey({ key: 'l', metaKey: true, shiftKey: true })
+        ).toBe(false)
     })
 
     it('xterm custom key event filter allows global shortcuts to bypass terminal', () => {

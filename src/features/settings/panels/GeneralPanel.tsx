@@ -113,7 +113,8 @@ export function GeneralPanel({
                             onChange={(val: string) =>
                                 dispatch(
                                     changeSettings({
-                                        keyBindings: val as Settings['keyBindings'],
+                                        keyBindings:
+                                            val as Settings['keyBindings'],
                                     })
                                 )
                             }

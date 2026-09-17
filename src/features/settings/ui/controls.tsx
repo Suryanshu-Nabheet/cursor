@@ -96,7 +96,8 @@ export function ThemeCard({
     isActive: boolean
     onClick: () => void
 }) {
-    const isLight = color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff'
+    const isLight =
+        color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff'
     return (
         <button
             type="button"

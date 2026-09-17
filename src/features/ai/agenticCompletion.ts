@@ -53,20 +53,17 @@ function getEnclosingScope(view: EditorView, pos: number): string | null {
     return null
 }
 
-function getNearbyDiagnostics(
-    view: EditorView,
-    lineNumber: number
-): string[] {
+function getNearbyDiagnostics(view: EditorView, lineNumber: number): string[] {
     const ls = view.state.field(lintState, false)
     if (!ls) return []
     const diags = getDiagnostics(ls, view.state).filter(
-        d => d.severity === 'error' || d.severity === 'warning'
+        (d) => d.severity === 'error' || d.severity === 'warning'
     )
     return diags
-        .filter(d => Math.abs(d.line - lineNumber) <= 8)
+        .filter((d) => Math.abs(d.line - lineNumber) <= 8)
         .slice(0, 8)
         .map(
-            d =>
+            (d) =>
                 `L${d.line}:${d.col} [${d.severity}] ${d.message}${
                     d.source ? ` (${d.source})` : ''
                 }`

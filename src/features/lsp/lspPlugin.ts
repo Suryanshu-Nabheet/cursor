@@ -667,7 +667,7 @@ export class LanguageServerPlugin implements LanguageServerPluginInterface {
                     from: number,
                     to: number
                 ) => {
-    // LSP apply: respect textEdit.range when present
+                    // LSP apply: respect textEdit.range when present
                     const pickText = textEdit?.newText ?? insertText ?? label
                     let applyFrom = from
                     let applyTo = to
@@ -712,9 +712,9 @@ export class LanguageServerPlugin implements LanguageServerPluginInterface {
                     } catch (e) {
                         // LSP plugin error
                     }
-                    const changes = [{ from: applyFrom, to: applyTo, insert: pickText }].concat(
-                        changesText
-                    )
+                    const changes = [
+                        { from: applyFrom, to: applyTo, insert: pickText },
+                    ].concat(changesText)
                     view.dispatch({
                         changes: changes,
                         annotations: [pickedCompletion.of(completion)],
@@ -1321,7 +1321,8 @@ async function requestExtensionCompletions(
     if (!filepath) return null
 
     const language = getLanguageFromFilename(filepath)
-    const providers = extensionActivationManager.getCompletionProviders(language)
+    const providers =
+        extensionActivationManager.getCompletionProviders(language)
     if (providers.length === 0) return null
 
     const { line, character } = offsetToPos(state.doc, pos)

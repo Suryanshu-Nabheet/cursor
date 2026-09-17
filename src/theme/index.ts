@@ -10,8 +10,4 @@ export {
     type CursorTheme,
 } from './tokens'
 
-export {
-    getCursorTheme,
-    cursorTheme,
-    default as cursor,
-} from './cursorTheme'
+export { getCursorTheme, cursorTheme, default as cursor } from './cursorTheme'

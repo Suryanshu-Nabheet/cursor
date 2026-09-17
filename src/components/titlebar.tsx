@@ -249,10 +249,18 @@ export function TitleBar({
     const dispatch = useAppDispatch()
     const generating = useAppSelector(csel.getGenerating)
     const appVersion = useAppSelector(gsel.getVersion)
-    const leftSideExpanded = useAppSelector((state: any) => state.toolState?.leftSideExpanded)
-    const aiSidebarOpen = useAppSelector((state: any) => state.toolState?.aiCommandPaletteTriggered)
-    const settingsOpen = useAppSelector((state: any) => state.settingsState?.isOpen)
-    const terminalOpen = useAppSelector((state: any) => state.global?.terminalOpen)
+    const leftSideExpanded = useAppSelector(
+        (state: any) => state.toolState?.leftSideExpanded
+    )
+    const aiSidebarOpen = useAppSelector(
+        (state: any) => state.toolState?.aiCommandPaletteTriggered
+    )
+    const settingsOpen = useAppSelector(
+        (state: any) => state.settingsState?.isOpen
+    )
+    const terminalOpen = useAppSelector(
+        (state: any) => state.global?.terminalOpen
+    )
 
     const [isWindows, setIsWindows] = useState(false)
 
@@ -341,7 +349,9 @@ export function TitleBar({
                         )}
 
                         <div
-                            className={`titlebar__right_button ${leftSideExpanded ? 'active' : ''}`}
+                            className={`titlebar__right_button ${
+                                leftSideExpanded ? 'active' : ''
+                            }`}
                             onClick={() => {
                                 dispatch(ts.toggleLeftSide())
                             }}
@@ -351,7 +361,9 @@ export function TitleBar({
                         </div>
 
                         <div
-                            className={`titlebar__right_button ${aiSidebarOpen ? 'active' : ''}`}
+                            className={`titlebar__right_button ${
+                                aiSidebarOpen ? 'active' : ''
+                            }`}
                             onClick={() => {
                                 dispatch(ts.triggerAICommandPalette())
                             }}
@@ -361,7 +373,9 @@ export function TitleBar({
                         </div>
 
                         <div
-                            className={`titlebar__right_button ${terminalOpen ? 'active' : ''}`}
+                            className={`titlebar__right_button ${
+                                terminalOpen ? 'active' : ''
+                            }`}
                             onClick={() => {
                                 dispatch(gs.toggleTerminal())
                             }}
@@ -371,7 +385,9 @@ export function TitleBar({
                         </div>
 
                         <div
-                            className={`titlebar__right_button ${settingsOpen ? 'active' : ''}`}
+                            className={`titlebar__right_button ${
+                                settingsOpen ? 'active' : ''
+                            }`}
                             onClick={() => {
                                 dispatch(ss.toggleSettings())
                             }}

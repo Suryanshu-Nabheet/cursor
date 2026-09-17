@@ -89,7 +89,9 @@ describe('AI inline completion helpers', () => {
     })
 
     it('strips the current partial token from model completions', () => {
-        expect(sanitizeCompletion('return value', baseContext)).toBe('urn value')
+        expect(sanitizeCompletion('return value', baseContext)).toBe(
+            'urn value'
+        )
     })
 
     it('aligns indentation when completing an empty indented line without double-indenting', () => {
@@ -130,7 +132,9 @@ describe('AI inline completion helpers', () => {
 
         const raw = 'const a = 1;\nconst b = 2;\nreturn a + b;'
         const formatted = sanitizeCompletion(raw, context)
-        expect(formatted).toBe('const a = 1;\n    const b = 2;\n    return a + b;')
+        expect(formatted).toBe(
+            'const a = 1;\n    const b = 2;\n    return a + b;'
+        )
     })
 
     it('rebases nested blocks cleanly inside multi-line completions', () => {
@@ -179,22 +183,27 @@ describe('AI inline completion helpers', () => {
     })
 
     it('limits very large completions to a bounded size', () => {
-        const raw = Array.from({ length: 300 }, (_, index) => `line${index}`).join(
-            '\n'
-        )
+        const raw = Array.from(
+            { length: 300 },
+            (_, index) => `line${index}`
+        ).join('\n')
 
         expect(sanitizeCompletion(raw, baseContext).length).toBeLessThan(2000)
     })
 
     it('keeps automatic ghost text short enough to render reliably for single statements', () => {
         expect(
-            normalizeAutomaticCompletion('firstSuggestion()\nsecondSuggestion()\n')
+            normalizeAutomaticCompletion(
+                'firstSuggestion()\nsecondSuggestion()\n'
+            )
         ).toBe('firstSuggestion()')
     })
 
     it('preserves structured multi-line blocks in automatic completions', () => {
         const block = 'if (isValid) {\n    saveData()\n}'
-        expect(normalizeAutomaticCompletion(`${block}\nextraCode()`)).toBe(block)
+        expect(normalizeAutomaticCompletion(`${block}\nextraCode()`)).toBe(
+            block
+        )
     })
 
     it('clamps completion runtime options for typing-time latency', () => {

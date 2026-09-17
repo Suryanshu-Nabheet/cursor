@@ -86,10 +86,7 @@ export function AIPanel({ onSave }: { onSave?: () => void }) {
                 }
             >
                 {selectedProvider === 'ollama' ? (
-                    <OllamaConfigPanel
-                        settings={settings}
-                        onSave={onSave}
-                    />
+                    <OllamaConfigPanel settings={settings} onSave={onSave} />
                 ) : selected ? (
                     <ByokConfigPanel
                         providerId={selected.id}
@@ -194,9 +191,7 @@ export function AIPanel({ onSave }: { onSave?: () => void }) {
                                 min={24}
                                 max={160}
                                 step={16}
-                                value={
-                                    settings.inlineCompletionMaxTokens ?? 64
-                                }
+                                value={settings.inlineCompletionMaxTokens ?? 64}
                                 onChange={(e) =>
                                     dispatch(
                                         changeSettings({
@@ -223,13 +218,13 @@ export function AIPanel({ onSave }: { onSave?: () => void }) {
                                 {inlineStatus.enabled
                                     ? 'AI ghost text enabled'
                                     : settings.inlineCompletionEnabled === false
-                                      ? 'AI completion disabled'
-                                      : 'AI completion unavailable'}
+                                    ? 'AI completion disabled'
+                                    : 'AI completion unavailable'}
                             </span>
                         </div>
                         <p className="mt-1">
-                            Inline suggestions use your configured provider.
-                            LSP stays for diagnostics and navigation.{' '}
+                            Inline suggestions use your configured provider. LSP
+                            stays for diagnostics and navigation.{' '}
                             {inlineStatus.reason}.
                         </p>
                     </div>

@@ -23,7 +23,9 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
             <>
                 {parts.map((part, i) =>
                     part.toLowerCase() === query.toLowerCase() ? (
-                        <mark key={i} className="qo-highlight">{part}</mark>
+                        <mark key={i} className="qo-highlight">
+                            {part}
+                        </mark>
                     ) : (
                         <span key={i}>{part}</span>
                     )
@@ -60,7 +62,9 @@ export default function SearchFiles() {
         try {
             const stored = localStorage.getItem('cursor_recent_files')
             if (stored) setRecentFiles(JSON.parse(stored))
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     }, [])
 
     // Search files
@@ -86,7 +90,10 @@ export default function SearchFiles() {
     useEffect(() => {
         if (!showFileSearch) return
         const handleClickOutside = (e: MouseEvent) => {
-            if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+            if (
+                wrapperRef.current &&
+                !wrapperRef.current.contains(e.target as Node)
+            ) {
                 dispatch(untriggerFileSearch())
             }
         }
@@ -112,16 +119,27 @@ export default function SearchFiles() {
         try {
             const stored = localStorage.getItem('cursor_recent_files')
             const recent: string[] = stored ? JSON.parse(stored) : []
-            const updated = [path, ...recent.filter(p => p !== path)].slice(0, 8)
+            const updated = [path, ...recent.filter((p) => p !== path)].slice(
+                0,
+                8
+            )
             localStorage.setItem('cursor_recent_files', JSON.stringify(updated))
-        } catch { /* ignore */ }
+        } catch {
+            /* ignore */
+        }
     }
 
     const folders = useAppSelector(getRootPath)
-    const welcomeDismissed = useAppSelector((state: any) => state.global.welcomeDismissed)
+    const welcomeDismissed = useAppSelector(
+        (state: any) => state.global.welcomeDismissed
+    )
     const isWelcomeScreen = (!folders || folders === '') && !welcomeDismissed
 
-    const displayedResults = query ? results : recentFiles.length > 0 ? recentFiles.slice(0, 8) : results
+    const displayedResults = query
+        ? results
+        : recentFiles.length > 0
+        ? recentFiles.slice(0, 8)
+        : results
 
     if (!showFileSearch || isWelcomeScreen) return null
 
@@ -135,11 +153,7 @@ export default function SearchFiles() {
             />
 
             {/* File Search Overlay */}
-            <div
-                className="qo-wrapper"
-                id="fileSearchId"
-                ref={wrapperRef}
-            >
+            <div className="qo-wrapper" id="fileSearchId" ref={wrapperRef}>
                 <div className="qo-container">
                     {/* Mode header */}
                     <div className="qo-mode-header qo-mode-file">
@@ -150,9 +164,26 @@ export default function SearchFiles() {
 
                     <div className="qo-input-row">
                         <span className="qo-search-icon">
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.5"/>
-                                <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            <svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <circle
+                                    cx="6.5"
+                                    cy="6.5"
+                                    r="5"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                />
+                                <path
+                                    d="M10.5 10.5L14 14"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                />
                             </svg>
                         </span>
                         <input
@@ -167,18 +198,28 @@ export default function SearchFiles() {
                                 if (e.key === 'Enter') {
                                     e.preventDefault()
                                     if (displayedResults[selectedIndex]) {
-                                        openSelected(displayedResults[selectedIndex])
+                                        openSelected(
+                                            displayedResults[selectedIndex]
+                                        )
                                     }
                                 } else if (e.key === 'ArrowDown') {
                                     e.preventDefault()
-                                    setSelectedIndex(prev => (
-                                        displayedResults.length === 0 ? 0 : (prev + 1) % displayedResults.length
-                                    ))
+                                    setSelectedIndex((prev) =>
+                                        displayedResults.length === 0
+                                            ? 0
+                                            : (prev + 1) %
+                                              displayedResults.length
+                                    )
                                 } else if (e.key === 'ArrowUp') {
                                     e.preventDefault()
-                                    setSelectedIndex(prev => (
-                                        displayedResults.length === 0 ? 0 : (prev - 1 + displayedResults.length) % displayedResults.length
-                                    ))
+                                    setSelectedIndex((prev) =>
+                                        displayedResults.length === 0
+                                            ? 0
+                                            : (prev -
+                                                  1 +
+                                                  displayedResults.length) %
+                                              displayedResults.length
+                                    )
                                 } else if (e.key === 'Escape') {
                                     e.preventDefault()
                                     dispatch(untriggerFileSearch())
@@ -207,14 +248,21 @@ export default function SearchFiles() {
                     <div className="qo-list">
                         {/* Section label */}
                         {!query && recentFiles.length > 0 && (
-                            <div className="qo-section-header">Recently Opened</div>
+                            <div className="qo-section-header">
+                                Recently Opened
+                            </div>
                         )}
-                        {!query && recentFiles.length === 0 && results.length > 0 && (
-                            <div className="qo-section-header">All Files</div>
-                        )}
+                        {!query &&
+                            recentFiles.length === 0 &&
+                            results.length > 0 && (
+                                <div className="qo-section-header">
+                                    All Files
+                                </div>
+                            )}
                         {query && results.length > 0 && (
                             <div className="qo-section-header">
-                                {results.length} result{results.length !== 1 ? 's' : ''}
+                                {results.length} result
+                                {results.length !== 1 ? 's' : ''}
                             </div>
                         )}
 
@@ -224,7 +272,9 @@ export default function SearchFiles() {
                                 {query ? (
                                     <>
                                         <span className="qo-empty-icon">⊘</span>
-                                        <span>No files match &ldquo;{query}&rdquo;</span>
+                                        <span>
+                                            No files match &ldquo;{query}&rdquo;
+                                        </span>
                                     </>
                                 ) : (
                                     <>
@@ -234,22 +284,25 @@ export default function SearchFiles() {
                                 )}
                             </div>
                         ) : (
-                            displayedResults.map((path: string, index: number) => (
-                                <SearchResult
-                                    key={path}
-                                    query={childQuery}
-                                    path={path}
-                                    isSelected={index === selectedIndex}
-                                    onOpen={openSelected}
-                                />
-                            ))
+                            displayedResults.map(
+                                (path: string, index: number) => (
+                                    <SearchResult
+                                        key={path}
+                                        query={childQuery}
+                                        path={path}
+                                        isSelected={index === selectedIndex}
+                                        onOpen={openSelected}
+                                    />
+                                )
+                            )
                         )}
                     </div>
 
                     {/* Footer */}
                     <div className="qo-footer">
                         <span className="qo-footer-hint">
-                            <kbd>↑</kbd><kbd>↓</kbd> Navigate
+                            <kbd>↑</kbd>
+                            <kbd>↓</kbd> Navigate
                         </span>
                         <span className="qo-footer-hint">
                             <kbd>↵</kbd> Open

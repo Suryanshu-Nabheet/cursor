@@ -11,7 +11,12 @@ describe('AI tool execution', () => {
     })
 
     it('marks terminal commands with non-zero exit codes as failed', async () => {
-        let onExit: ((_event: unknown, data: { id: string; exitCode: number }) => void) | null = null
+        let onExit:
+            | ((
+                  _event: unknown,
+                  data: { id: string; exitCode: number }
+              ) => void)
+            | null = null
 
         ;(global as any).window = {
             connector: {
@@ -108,7 +113,9 @@ describe('AI tool execution', () => {
             expect(isRiskyTerminalCommand('sudo rm -rf /etc')).toBe(true)
             expect(isRiskyTerminalCommand('mkfs.ext4 /dev/sda1')).toBe(true)
             expect(isRiskyTerminalCommand('chmod -R 777 /')).toBe(true)
-            expect(isRiskyTerminalCommand('dd if=/dev/zero of=/dev/sda')).toBe(true)
+            expect(isRiskyTerminalCommand('dd if=/dev/zero of=/dev/sda')).toBe(
+                true
+            )
             expect(isRiskyTerminalCommand(':(){ :|:& };:')).toBe(true)
         })
     })

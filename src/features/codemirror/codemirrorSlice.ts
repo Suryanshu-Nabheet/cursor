@@ -45,11 +45,7 @@ function createEditorView(
 ): EditorView {
     const { initialState, config } = editorStateConfig
     const editorState = initialState
-        ? EditorState.fromJSON(
-              initialState.json,
-              config,
-              initialState.fields
-          )
+        ? EditorState.fromJSON(initialState.json, config, initialState.fields)
         : EditorState.create(config)
 
     let view!: EditorView

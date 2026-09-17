@@ -6,8 +6,9 @@ const rules = require('./webpack.rules')
 const rendererRules = rules.filter((rule) => {
     if (rule.use && typeof rule.use === 'object' && rule.use.loader) {
         return (
-            !rule.use.loader.includes('@vercel/webpack-asset-relocator-loader') &&
-            !rule.use.loader.includes('node-loader')
+            !rule.use.loader.includes(
+                '@vercel/webpack-asset-relocator-loader'
+            ) && !rule.use.loader.includes('node-loader')
         )
     }
     if (rule.use === 'node-loader') return false

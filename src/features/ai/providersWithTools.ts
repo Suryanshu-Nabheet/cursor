@@ -37,7 +37,9 @@ function repairWriteFileArguments(raw: string): Record<string, any> | null {
     const path = pathMatch[1].trim()
 
     // 1. Backtick template literal: `...`
-    const backtickMatch = raw.match(/["']?content["']?\s*:\s*`([\s\S]*?)`\s*\}?\s*\}?$/i)
+    const backtickMatch = raw.match(
+        /["']?content["']?\s*:\s*`([\s\S]*?)`\s*\}?\s*\}?$/i
+    )
     if (backtickMatch) {
         return { path, content: backtickMatch[1] }
     }
@@ -46,7 +48,11 @@ function repairWriteFileArguments(raw: string): Record<string, any> | null {
     const contentMatch = raw.match(/["']?content["']?\s*:\s*([\s\S]*)/i)
     if (!contentMatch) return null
     let content = contentMatch[1].trim()
-    if (content.startsWith('"') || content.startsWith("'") || content.startsWith('`')) {
+    if (
+        content.startsWith('"') ||
+        content.startsWith("'") ||
+        content.startsWith('`')
+    ) {
         content = content.slice(1)
     }
     content = content.replace(/["'`]\s*\}?\s*\}?\s*$/, '')
@@ -64,7 +70,11 @@ function repairEditFileArguments(raw: string): Record<string, any> | null {
     const newMatch = raw.match(/["']?newText["']?\s*:\s*([\s\S]*)/i)
     if (oldMatch && newMatch) {
         let newText = newMatch[1].trim()
-        if (newText.startsWith('"') || newText.startsWith("'") || newText.startsWith('`')) {
+        if (
+            newText.startsWith('"') ||
+            newText.startsWith("'") ||
+            newText.startsWith('`')
+        ) {
             newText = newText.slice(1)
         }
         newText = newText.replace(/["'`]\s*\}?\s*\}?\s*$/, '')
@@ -91,7 +101,10 @@ function parseToolArguments(
 
         const primaryKey = PRIMARY_TOOL_ARGUMENT[toolName]
         if (primaryKey && typeof parsed === 'string' && parsed.trim()) {
-            return { arguments: { [primaryKey]: parsed.trim() }, repaired: true }
+            return {
+                arguments: { [primaryKey]: parsed.trim() },
+                repaired: true,
+            }
         }
     } catch {
         // Fall through to repair common local-model argument fragments.
@@ -110,13 +123,17 @@ function parseToolArguments(
     const primaryKey = PRIMARY_TOOL_ARGUMENT[toolName]
     if (!primaryKey) return null
 
-    const normalized = cleanedRaw
-        .replace(/[“”]/g, '"')
-        .replace(/[‘’]/g, "'")
+    const normalized = cleanedRaw.replace(/[“”]/g, '"').replace(/[‘’]/g, "'")
 
-    const doubleQuoted = new RegExp(`"${primaryKey}"\\s*:\\s*"([^"\\n\\r]*)`).exec(normalized)
-    const singleQuoted = new RegExp(`'${primaryKey}'\\s*:\\s*'([^'\\n\\r]*)`).exec(normalized)
-    const unquoted = new RegExp(`["']?${primaryKey}["']?\\s*:\\s*([^,}\\n\\r]+)`).exec(normalized)
+    const doubleQuoted = new RegExp(
+        `"${primaryKey}"\\s*:\\s*"([^"\\n\\r]*)`
+    ).exec(normalized)
+    const singleQuoted = new RegExp(
+        `'${primaryKey}'\\s*:\\s*'([^'\\n\\r]*)`
+    ).exec(normalized)
+    const unquoted = new RegExp(
+        `["']?${primaryKey}["']?\\s*:\\s*([^,}\\n\\r]+)`
+    ).exec(normalized)
     const value = doubleQuoted?.[1] ?? singleQuoted?.[1] ?? unquoted?.[1]
 
     if (!value) return null
@@ -145,7 +162,9 @@ const KNOWN_TOOLS = new Set([
     'open_file',
 ])
 
-export function tryParseToolCallObject(raw: string): { name: string; arguments: Record<string, any> } | null {
+export function tryParseToolCallObject(
+    raw: string
+): { name: string; arguments: Record<string, any> } | null {
     const trimmed = raw.trim()
     if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) return null
 
@@ -155,9 +174,19 @@ export function tryParseToolCallObject(raw: string): { name: string; arguments: 
         const name = obj.name || obj.tool || obj.function || obj.action
         if (typeof name === 'string' && KNOWN_TOOLS.has(name.trim())) {
             let finalName = name.trim()
-            const args = obj.arguments || obj.parameters || obj.action_input || {}
-            if (typeof args === 'object' && args !== null && !Array.isArray(args)) {
-                if (finalName === 'edit_file' && args.content && !args.oldText && !args.newText) {
+            const args =
+                obj.arguments || obj.parameters || obj.action_input || {}
+            if (
+                typeof args === 'object' &&
+                args !== null &&
+                !Array.isArray(args)
+            ) {
+                if (
+                    finalName === 'edit_file' &&
+                    args.content &&
+                    !args.oldText &&
+                    !args.newText
+                ) {
                     finalName = 'write_file'
                 }
                 return { name: finalName, arguments: args }
@@ -166,7 +195,12 @@ export function tryParseToolCallObject(raw: string): { name: string; arguments: 
                 const parsedArgs = parseToolArguments(finalName, args)
                 if (parsedArgs) {
                     let finalArgs = parsedArgs.arguments
-                    if (finalName === 'edit_file' && finalArgs.content && !finalArgs.oldText && !finalArgs.newText) {
+                    if (
+                        finalName === 'edit_file' &&
+                        finalArgs.content &&
+                        !finalArgs.oldText &&
+                        !finalArgs.newText
+                    ) {
                         finalName = 'write_file'
                     }
                     return { name: finalName, arguments: finalArgs }
@@ -178,7 +212,9 @@ export function tryParseToolCallObject(raw: string): { name: string; arguments: 
     }
 
     // 2. Regex-assisted recovery for unescaped code content
-    const nameMatch = trimmed.match(/["']?(?:name|tool|function|action)["']?\s*:\s*["']?([a-zA-Z0-9_-]+)["']?/)
+    const nameMatch = trimmed.match(
+        /["']?(?:name|tool|function|action)["']?\s*:\s*["']?([a-zA-Z0-9_-]+)["']?/
+    )
     if (nameMatch) {
         const name = nameMatch[1].trim()
         if (KNOWN_TOOLS.has(name)) {
@@ -190,12 +226,19 @@ export function tryParseToolCallObject(raw: string): { name: string; arguments: 
                 const repaired = repairEditFileArguments(trimmed)
                 if (repaired) return { name, arguments: repaired }
                 const writeRepaired = repairWriteFileArguments(trimmed)
-                if (writeRepaired) return { name: 'write_file', arguments: writeRepaired }
+                if (writeRepaired)
+                    return { name: 'write_file', arguments: writeRepaired }
             }
 
-            const pathMatch = trimmed.match(/"(?:path|targetPath|file)"\s*:\s*"([^"]+)"/i)
-            const commandMatch = trimmed.match(/"(?:command|cmd)"\s*:\s*"([^"]+)"/i)
-            const queryMatch = trimmed.match(/"(?:query|pattern)"\s*:\s*"([^"]+)"/i)
+            const pathMatch = trimmed.match(
+                /"(?:path|targetPath|file)"\s*:\s*"([^"]+)"/i
+            )
+            const commandMatch = trimmed.match(
+                /"(?:command|cmd)"\s*:\s*"([^"]+)"/i
+            )
+            const queryMatch = trimmed.match(
+                /"(?:query|pattern)"\s*:\s*"([^"]+)"/i
+            )
 
             const args: Record<string, any> = {}
             if (pathMatch) args.path = pathMatch[1]
@@ -213,13 +256,21 @@ export function tryParseToolCallObject(raw: string): { name: string; arguments: 
 
 export function extractJsonToolCalls(text: string): {
     cleanText: string
-    toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }>
+    toolCalls: Array<{
+        id: string
+        name: string
+        arguments: Record<string, any>
+    }>
 } {
     if (!text || !text.trim()) {
         return { cleanText: '', toolCalls: [] }
     }
 
-    const toolCalls: Array<{ id: string; name: string; arguments: Record<string, any> }> = []
+    const toolCalls: Array<{
+        id: string
+        name: string
+        arguments: Record<string, any>
+    }> = []
     let modifiedText = text
 
     // 1. Check fenced code blocks: ```(?:json)? ... ```
@@ -400,7 +451,8 @@ export async function* streamAIResponseWithTools(
                 formattedTools,
                 'https://openrouter.ai/api/v1',
                 {
-                    'HTTP-Referer': 'https://github.com/Suryanshu-Nabheet/cursor',
+                    'HTTP-Referer':
+                        'https://github.com/Suryanshu-Nabheet/cursor',
                     'X-Title': 'Cursor IDE',
                 },
                 options
@@ -705,7 +757,8 @@ async function* streamOpenAIWithTools(
 
         // Check for JSON fallback in the text
         if (toolCallsMap.size === 0) {
-            const { toolCalls: fallbackToolCalls } = extractJsonToolCalls(fullTextAccumulator)
+            const { toolCalls: fallbackToolCalls } =
+                extractJsonToolCalls(fullTextAccumulator)
             for (const parsedTool of fallbackToolCalls) {
                 yield {
                     type: 'tool_call',
@@ -1011,7 +1064,9 @@ async function* streamGeminiWithTools(
                         if (part.text)
                             yield { type: 'text', content: part.text }
                         if (part.functionCall) {
-                            const callId = `call_${part.functionCall.name}_${Date.now()}`
+                            const callId = `call_${
+                                part.functionCall.name
+                            }_${Date.now()}`
                             yield {
                                 type: 'tool_call_start',
                                 toolCall: {

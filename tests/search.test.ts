@@ -37,6 +37,8 @@ describe('Search root resolution (resolveProjectRoot)', () => {
         store.get.mockReturnValue({ defaultFolder: '/non/existent/path/98765' })
 
         expect(resolveProjectRoot('')).toBe('')
-        expect(resolveProjectRoot('/non/existent/path/12345')).toBe('/non/existent/path/12345')
+        expect(resolveProjectRoot('/non/existent/path/12345')).toBe(
+            '/non/existent/path/12345'
+        )
     })
 })

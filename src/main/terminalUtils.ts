@@ -34,7 +34,10 @@ export function resolveTerminalCwd(
         if (!candidate || typeof candidate !== 'string') continue
         const resolved = path.resolve(candidate)
         try {
-            if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+            if (
+                fs.existsSync(resolved) &&
+                fs.statSync(resolved).isDirectory()
+            ) {
                 return resolved
             }
         } catch {
@@ -53,7 +56,10 @@ export function isSafeTerminalUrl(rawUrl: string) {
     }
 }
 
-export function isAllowedShell(requestedShell: string, allowedShells: string[]) {
+export function isAllowedShell(
+    requestedShell: string,
+    allowedShells: string[]
+) {
     const requestedBaseName = path.basename(requestedShell).toLowerCase()
     return allowedShells.some(
         (shell) => path.basename(shell).toLowerCase() === requestedBaseName

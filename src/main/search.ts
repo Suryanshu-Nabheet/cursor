@@ -10,12 +10,24 @@ import { store } from './storeHandler'
 const hasRg = fs.existsSync(rgLoc)
 
 export const resolveProjectRoot = (rootPath?: string): string => {
-    if (rootPath && typeof rootPath === 'string' && rootPath.trim() !== '' && fs.existsSync(rootPath)) {
+    if (
+        rootPath &&
+        typeof rootPath === 'string' &&
+        rootPath.trim() !== '' &&
+        fs.existsSync(rootPath)
+    ) {
         return rootPath
     }
     const projectPathObj = store.get('projectPath') as any
-    const savedRoot = typeof projectPathObj === 'string' ? projectPathObj : projectPathObj?.defaultFolder
-    if (savedRoot && typeof savedRoot === 'string' && fs.existsSync(savedRoot)) {
+    const savedRoot =
+        typeof projectPathObj === 'string'
+            ? projectPathObj
+            : projectPathObj?.defaultFolder
+    if (
+        savedRoot &&
+        typeof savedRoot === 'string' &&
+        fs.existsSync(savedRoot)
+    ) {
         return savedRoot
     }
     return rootPath || ''
@@ -321,7 +333,9 @@ const searchFilesPathGit = async (
     if (await doesCommandSucceed('git ls-files', effectiveRoot)) {
         const cmd = `git ls-files | grep "${query}" | head -n ${topResults}`
         try {
-            const { stdout } = await promisify(cp.exec)(cmd, { cwd: effectiveRoot })
+            const { stdout } = await promisify(cp.exec)(cmd, {
+                cwd: effectiveRoot,
+            })
             return stdout
                 .split('\n')
                 .map((l) => {
@@ -332,7 +346,11 @@ const searchFilesPathGit = async (
             // ignore errors
         }
     }
-    return await searchFilesPath(event, { query, rootPath: effectiveRoot, topResults })
+    return await searchFilesPath(event, {
+        query,
+        rootPath: effectiveRoot,
+        topResults,
+    })
 }
 
 const doesCommandSucceed = async (cmd: string, rootPath: string) => {
@@ -363,7 +381,9 @@ const searchFilesNameGit = async (
         // Safe grep to avoid hanging on large outputs
         const cmd = `git ls-files | grep -i "${query}" | grep -v "^node_modules/" | head -n ${topResults}`
         try {
-            const { stdout } = await promisify(cp.exec)(cmd, { cwd: effectiveRoot })
+            const { stdout } = await promisify(cp.exec)(cmd, {
+                cwd: effectiveRoot,
+            })
             return stdout
                 .split('\n')
                 .map((l) => {
@@ -374,7 +394,11 @@ const searchFilesNameGit = async (
             // ignore
         }
     }
-    return await searchFilesName(event, { query, rootPath: effectiveRoot, topResults })
+    return await searchFilesName(event, {
+        query,
+        rootPath: effectiveRoot,
+        topResults,
+    })
 }
 
 export const setupSearch = () => {

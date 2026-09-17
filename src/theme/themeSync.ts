@@ -309,7 +309,10 @@ export function applyThemeToRoot(theme: ThemeColors) {
     root.style.setProperty('--accent-hover', '#1ba1e2')
     root.style.setProperty('--blue', theme.buttonBackground || '#007acc')
     root.style.setProperty('--blue-light', '#1ba1e2')
-    root.style.setProperty('--sidebar-selected-accent', theme.buttonBackground || '#007acc')
+    root.style.setProperty(
+        '--sidebar-selected-accent',
+        theme.buttonBackground || '#007acc'
+    )
 
     // Semantic colors - these remain stable as they reference standard meanings
     root.style.setProperty('--color-success', '#4ade80')
@@ -344,10 +347,7 @@ export function applyThemeToRoot(theme: ThemeColors) {
         '--activity-bar-active-bg',
         theme.activityBarActiveBackground || theme.itemHoverBackground
     )
-    root.style.setProperty(
-        '--activity-bar-hover-bg',
-        theme.itemHoverBackground
-    )
+    root.style.setProperty('--activity-bar-hover-bg', theme.itemHoverBackground)
     root.style.setProperty('--activity-bar-gap', '2px')
     root.style.setProperty('--activity-bar-padding-x', '6px')
     root.style.setProperty('--activity-bar-more-gap', '10px')
@@ -480,7 +480,10 @@ export function applyThemeToRoot(theme: ThemeColors) {
     // ═══════════════════════════════════════════════════════════════════════
     // BORDER VARIANTS
     // ═══════════════════════════════════════════════════════════════════════
-    root.style.setProperty('--ui-border-hover', theme.selection || theme.itemHoverBackground)
+    root.style.setProperty(
+        '--ui-border-hover',
+        theme.selection || theme.itemHoverBackground
+    )
     root.style.setProperty('--ui-border-subtle', theme.itemHoverBackground)
 }
 

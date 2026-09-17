@@ -288,10 +288,7 @@ class ExtensionActivationManager {
                     throw new Error('Redux store not available')
                 }
 
-                console.log(
-                    ` AI request from ${context.extensionId}:`,
-                    prompt
-                )
+                console.log(` AI request from ${context.extensionId}:`, prompt)
 
                 // Dispatch to AI chat system using the correct action
                 store.dispatch({
@@ -353,9 +350,7 @@ class ExtensionActivationManager {
                     this.codeActionProviders.set(language, [])
                 }
                 this.codeActionProviders.get(language)!.push(provider)
-                console.log(
-                    ` Registered code action provider for ${language}`
-                )
+                console.log(` Registered code action provider for ${language}`)
 
                 context.subscriptions.push({
                     dispose: () => {

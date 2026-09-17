@@ -56,7 +56,11 @@ import { store } from '../../app/store'
 import { triggerFileSearch } from '../../features/tools/toolSlice'
 import { pressAICommand } from '../../features/chat/chatThunks'
 import { createThemeFromData } from '../../theme/themeManager'
-import { ghostTextExtension, acceptGhostText, bindViewFilePath } from '../../features/extensions/ghostText'
+import {
+    ghostTextExtension,
+    acceptGhostText,
+    bindViewFilePath,
+} from '../../features/extensions/ghostText'
 
 // Safe accessor for connector (fallback to window.connector if global connector is not available)
 const getConnector = () => {

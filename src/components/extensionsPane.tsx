@@ -8,7 +8,21 @@ import {
     uninstallExtension,
 } from '../features/extensions/extensionsSlice'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSearch, faCube, faSpinner, faDownload, faTrash, faCheck, faStar, faCode, faPaintBrush, faTools, faFont, faKeyboard, faLanguage } from '@fortawesome/free-solid-svg-icons'
+import {
+    faSearch,
+    faCube,
+    faSpinner,
+    faDownload,
+    faTrash,
+    faCheck,
+    faStar,
+    faCode,
+    faPaintBrush,
+    faTools,
+    faFont,
+    faKeyboard,
+    faLanguage,
+} from '@fortawesome/free-solid-svg-icons'
 
 const CATEGORIES = [
     { label: 'All', icon: faCode, value: '' },
@@ -31,11 +45,15 @@ function StarRating({ rating }: { rating?: number }) {
     const stars = Math.round(rating)
     return (
         <div className="ext-stars" title={`${rating.toFixed(1)} / 5`}>
-            {[1, 2, 3, 4, 5].map(i => (
+            {[1, 2, 3, 4, 5].map((i) => (
                 <FontAwesomeIcon
                     key={i}
                     icon={faStar}
-                    className={i <= stars ? 'ext-star ext-star--filled' : 'ext-star ext-star--empty'}
+                    className={
+                        i <= stars
+                            ? 'ext-star ext-star--filled'
+                            : 'ext-star ext-star--empty'
+                    }
                 />
             ))}
         </div>
@@ -50,8 +68,12 @@ export const ExtensionsPane: React.FC = () => {
     const [selectedCategory, setSelectedCategory] = useState('')
     const [installingId, setInstallingId] = useState<string | null>(null)
     const [uninstallingId, setUninstallingId] = useState<string | null>(null)
-    const [installedRecently, setInstalledRecently] = useState<Set<string>>(new Set())
-    const [activeTab, setActiveTab] = useState<'marketplace' | 'installed'>('marketplace')
+    const [installedRecently, setInstalledRecently] = useState<Set<string>>(
+        new Set()
+    )
+    const [activeTab, setActiveTab] = useState<'marketplace' | 'installed'>(
+        'marketplace'
+    )
 
     useEffect(() => {
         dispatch(fetchPopularExtensions())
@@ -77,9 +99,9 @@ export const ExtensionsPane: React.FC = () => {
         setInstallingId(id)
         try {
             await dispatch(installExtension(ext)).unwrap()
-            setInstalledRecently(prev => new Set([...prev, id]))
+            setInstalledRecently((prev) => new Set([...prev, id]))
             setTimeout(() => {
-                setInstalledRecently(prev => {
+                setInstalledRecently((prev) => {
                     const next = new Set(prev)
                     next.delete(id)
                     return next
@@ -109,10 +131,13 @@ export const ExtensionsPane: React.FC = () => {
     const filteredAvailable = available.filter((ext: any) => {
         if (!selectedCategory) return true
         const cats = ext.categories || []
-        return cats.some((c: string) => c.toLowerCase().includes(selectedCategory.toLowerCase()))
+        return cats.some((c: string) =>
+            c.toLowerCase().includes(selectedCategory.toLowerCase())
+        )
     })
 
-    const displayList = activeTab === 'installed' ? installedList : filteredAvailable
+    const displayList =
+        activeTab === 'installed' ? installedList : filteredAvailable
 
     return (
         <div className="ext-pane">
@@ -121,18 +146,24 @@ export const ExtensionsPane: React.FC = () => {
                 <span className="ext-pane__title">Extensions</span>
                 <div className="ext-pane__tabs">
                     <button
-                        className={`ext-tab ${activeTab === 'marketplace' ? 'ext-tab--active' : ''}`}
+                        className={`ext-tab ${
+                            activeTab === 'marketplace' ? 'ext-tab--active' : ''
+                        }`}
                         onClick={() => setActiveTab('marketplace')}
                     >
                         Marketplace
                     </button>
                     <button
-                        className={`ext-tab ${activeTab === 'installed' ? 'ext-tab--active' : ''}`}
+                        className={`ext-tab ${
+                            activeTab === 'installed' ? 'ext-tab--active' : ''
+                        }`}
                         onClick={() => setActiveTab('installed')}
                     >
                         Installed
                         {installedList.length > 0 && (
-                            <span className="ext-badge">{installedList.length}</span>
+                            <span className="ext-badge">
+                                {installedList.length}
+                            </span>
                         )}
                     </button>
                 </div>
@@ -141,12 +172,17 @@ export const ExtensionsPane: React.FC = () => {
             {/* Search */}
             <div className="ext-search-wrap">
                 <form onSubmit={handleSearch} className="ext-search-form">
-                    <FontAwesomeIcon icon={faSearch} className="ext-search-icon" />
+                    <FontAwesomeIcon
+                        icon={faSearch}
+                        className="ext-search-icon"
+                    />
                     <input
                         className="ext-search-input"
                         placeholder="Search extensions..."
                         value={searchQuery}
-                        onChange={(e) => dispatch(setSearchQuery(e.target.value))}
+                        onChange={(e) =>
+                            dispatch(setSearchQuery(e.target.value))
+                        }
                     />
                     {searchQuery && (
                         <button
@@ -169,10 +205,17 @@ export const ExtensionsPane: React.FC = () => {
                     {CATEGORIES.map((cat) => (
                         <button
                             key={cat.value}
-                            className={`ext-category-chip ${selectedCategory === cat.value ? 'ext-category-chip--active' : ''}`}
+                            className={`ext-category-chip ${
+                                selectedCategory === cat.value
+                                    ? 'ext-category-chip--active'
+                                    : ''
+                            }`}
                             onClick={() => handleCategoryClick(cat.value)}
                         >
-                            <FontAwesomeIcon icon={cat.icon} className="ext-category-chip-icon" />
+                            <FontAwesomeIcon
+                                icon={cat.icon}
+                                className="ext-category-chip-icon"
+                            />
                             {cat.label}
                         </button>
                     ))}
@@ -188,8 +231,15 @@ export const ExtensionsPane: React.FC = () => {
                     </div>
                 ) : displayList.length === 0 ? (
                     <div className="ext-empty">
-                        <FontAwesomeIcon icon={faCube} className="ext-empty-icon" />
-                        <span>{activeTab === 'installed' ? 'No extensions installed' : 'No extensions found'}</span>
+                        <FontAwesomeIcon
+                            icon={faCube}
+                            className="ext-empty-icon"
+                        />
+                        <span>
+                            {activeTab === 'installed'
+                                ? 'No extensions installed'
+                                : 'No extensions found'}
+                        </span>
                     </div>
                 ) : (
                     displayList.map((ext: any) => {
@@ -208,7 +258,9 @@ export const ExtensionsPane: React.FC = () => {
                                             alt=""
                                             className="ext-item__icon-img"
                                             onError={(e) => {
-                                                (e.target as HTMLImageElement).style.display = 'none'
+                                                ;(
+                                                    e.target as HTMLImageElement
+                                                ).style.display = 'none'
                                             }}
                                         />
                                     ) : (
@@ -224,27 +276,49 @@ export const ExtensionsPane: React.FC = () => {
                                             {ext.displayName || ext.name}
                                         </span>
                                         {isInstalled && !justInstalled && (
-                                            <span className="ext-installed-badge">Installed</span>
+                                            <span className="ext-installed-badge">
+                                                Installed
+                                            </span>
                                         )}
                                         {justInstalled && (
-                                            <span className="ext-installed-badge ext-installed-badge--new">Installed</span>
+                                            <span className="ext-installed-badge ext-installed-badge--new">
+                                                Installed
+                                            </span>
                                         )}
                                     </div>
-                                    <span className="ext-item__publisher">{ext.publisher}</span>
-                                    <span className="ext-item__desc">{ext.description}</span>
+                                    <span className="ext-item__publisher">
+                                        {ext.publisher}
+                                    </span>
+                                    <span className="ext-item__desc">
+                                        {ext.description}
+                                    </span>
 
                                     <div className="ext-item__meta">
                                         {(ext.averageRating || ext.rating) && (
-                                            <StarRating rating={ext.averageRating || ext.rating} />
+                                            <StarRating
+                                                rating={
+                                                    ext.averageRating ||
+                                                    ext.rating
+                                                }
+                                            />
                                         )}
-                                        {(ext.downloadCount || ext.downloads) && (
+                                        {(ext.downloadCount ||
+                                            ext.downloads) && (
                                             <span className="ext-meta-stat">
-                                                <FontAwesomeIcon icon={faDownload} className="ext-meta-icon" />
-                                                {formatDownloads(ext.downloadCount || ext.downloads)}
+                                                <FontAwesomeIcon
+                                                    icon={faDownload}
+                                                    className="ext-meta-icon"
+                                                />
+                                                {formatDownloads(
+                                                    ext.downloadCount ||
+                                                        ext.downloads
+                                                )}
                                             </span>
                                         )}
                                         {ext.version && (
-                                            <span className="ext-meta-version">v{ext.version}</span>
+                                            <span className="ext-meta-version">
+                                                v{ext.version}
+                                            </span>
                                         )}
                                     </div>
 
@@ -252,29 +326,60 @@ export const ExtensionsPane: React.FC = () => {
                                         {isInstalled ? (
                                             <button
                                                 className="ext-btn ext-btn--uninstall"
-                                                onClick={(e) => handleUninstall(id, e)}
+                                                onClick={(e) =>
+                                                    handleUninstall(id, e)
+                                                }
                                                 disabled={isUninstalling}
                                                 title="Uninstall extension"
                                             >
                                                 {isUninstalling ? (
-                                                    <><FontAwesomeIcon icon={faSpinner} spin /> Removing...</>
+                                                    <>
+                                                        <FontAwesomeIcon
+                                                            icon={faSpinner}
+                                                            spin
+                                                        />{' '}
+                                                        Removing...
+                                                    </>
                                                 ) : (
-                                                    <><FontAwesomeIcon icon={faTrash} /> Uninstall</>
+                                                    <>
+                                                        <FontAwesomeIcon
+                                                            icon={faTrash}
+                                                        />{' '}
+                                                        Uninstall
+                                                    </>
                                                 )}
                                             </button>
                                         ) : (
                                             <button
                                                 className="ext-btn ext-btn--install"
-                                                onClick={(e) => handleInstall(ext, e)}
+                                                onClick={(e) =>
+                                                    handleInstall(ext, e)
+                                                }
                                                 disabled={isInstalling}
                                                 title="Install extension"
                                             >
                                                 {isInstalling ? (
-                                                    <><FontAwesomeIcon icon={faSpinner} spin /> Installing...</>
+                                                    <>
+                                                        <FontAwesomeIcon
+                                                            icon={faSpinner}
+                                                            spin
+                                                        />{' '}
+                                                        Installing...
+                                                    </>
                                                 ) : justInstalled ? (
-                                                    <><FontAwesomeIcon icon={faCheck} /> Installed</>
+                                                    <>
+                                                        <FontAwesomeIcon
+                                                            icon={faCheck}
+                                                        />{' '}
+                                                        Installed
+                                                    </>
                                                 ) : (
-                                                    <><FontAwesomeIcon icon={faDownload} /> Install</>
+                                                    <>
+                                                        <FontAwesomeIcon
+                                                            icon={faDownload}
+                                                        />{' '}
+                                                        Install
+                                                    </>
                                                 )}
                                             </button>
                                         )}

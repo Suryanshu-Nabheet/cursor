@@ -25,7 +25,9 @@ export class ContextBuilder {
         if (this.previousSymbolsFuture) {
             await Promise.race([
                 this.previousSymbolsFuture,
-                new Promise((resolve) => setTimeout(() => resolve(null), timeout)),
+                new Promise((resolve) =>
+                    setTimeout(() => resolve(null), timeout)
+                ),
             ])
         }
 

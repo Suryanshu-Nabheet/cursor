@@ -10,7 +10,9 @@ function escapeRegExp(value: string) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function buildSearchRegExp(options: SearchReplaceOptions): RegExp | null {
+export function buildSearchRegExp(
+    options: SearchReplaceOptions
+): RegExp | null {
     if (!options.query) return null
 
     const source = options.useRegex

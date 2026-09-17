@@ -77,10 +77,7 @@ export function SettingsEditor() {
 
                 <div className="settings-editor__body">
                     {activeTab === 'General' && (
-                        <GeneralPanel
-                            settings={settings}
-                            dispatch={dispatch}
-                        />
+                        <GeneralPanel settings={settings} dispatch={dispatch} />
                     )}
                     {activeTab === 'AI' && (
                         <AIPanel onSave={() => dispatch(closeError())} />

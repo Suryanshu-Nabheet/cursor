@@ -12,12 +12,12 @@ module.exports = {
                 'ui-border': 'rgba(255, 255, 255, 0.06)',
                 'ui-border-subtle': 'rgba(255, 255, 255, 0.03)',
                 'ui-hover': 'rgba(255, 255, 255, 0.05)',
-                'accent': 'var(--accent)',
+                accent: 'var(--accent)',
                 'accent-hover': 'var(--accent-hover)',
-                'sidebar': 'var(--sidebar-bg)',
-                'success': 'var(--color-success)',
-                'warn': 'var(--color-warning)',
-                'danger': 'var(--color-error)',
+                sidebar: 'var(--sidebar-bg)',
+                success: 'var(--color-success)',
+                warn: 'var(--color-warning)',
+                danger: 'var(--color-error)',
                 oxo: {
                     base00: '#0a0a0a',
                     base01: '#141414',
@@ -42,13 +42,19 @@ module.exports = {
                 sans: 'var(--font-sans)',
             },
             keyframes: {
-                'shimmer': {
+                shimmer: {
                     '0%': { backgroundPosition: '-200% 0' },
                     '100%': { backgroundPosition: '200% 0' },
                 },
                 'glow-pulse': {
-                    '0%, 100%': { opacity: '0.5', transform: 'translateX(-50%) scale(1)' },
-                    '50%': { opacity: '1', transform: 'translateX(-50%) scale(1.12)' },
+                    '0%, 100%': {
+                        opacity: '0.5',
+                        transform: 'translateX(-50%) scale(1)',
+                    },
+                    '50%': {
+                        opacity: '1',
+                        transform: 'translateX(-50%) scale(1.12)',
+                    },
                 },
                 'live-dot': {
                     '0%, 100%': { opacity: '1', transform: 'scale(1)' },
@@ -58,21 +64,21 @@ module.exports = {
                     '0%': { transform: 'translateX(-150%)' },
                     '100%': { transform: 'translateX(350%)' },
                 },
-                'blink': {
+                blink: {
                     '0%, 100%': { opacity: '1' },
                     '50%': { opacity: '0' },
                 },
             },
             animation: {
-                'shimmer': 'shimmer 1.6s ease-in-out infinite',
+                shimmer: 'shimmer 1.6s ease-in-out infinite',
                 'shimmer-fast': 'shimmer 1s linear infinite',
                 'glow-pulse': 'glow-pulse 3s ease-in-out infinite',
                 'live-dot': 'live-dot 1.2s ease-in-out infinite',
-                'progress': 'progress-run 1.4s ease-in-out infinite',
-                'blink': 'blink 0.8s step-end infinite',
+                progress: 'progress-run 1.4s ease-in-out infinite',
+                blink: 'blink 0.8s step-end infinite',
             },
             backgroundSize: {
-                '200': '200% 100%',
+                200: '200% 100%',
             },
         },
     },

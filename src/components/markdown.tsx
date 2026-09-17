@@ -561,7 +561,12 @@ export function CommandBarInner({ autofocus }: { autofocus: boolean }) {
                     dispatch(cs.moveCommandBarHistory('down'))
                     e.preventDefault()
                 }
-                if ((e.keyCode === 74 || e.keyCode === 75 || e.keyCode === 76) && e.metaKey) {
+                if (
+                    (e.keyCode === 74 ||
+                        e.keyCode === 75 ||
+                        e.keyCode === 76) &&
+                    e.metaKey
+                ) {
                     dispatch(cs.abortCommandBar())
                 }
                 if (e.keyCode === 90 && e.metaKey) {

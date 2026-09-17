@@ -22,7 +22,10 @@ function getCompilerSetup(rootDir: string) {
 
     if (!tsConfigPath) {
         // No tsconfig found
-        const errorMessage = 'Cannot locate a tsconfig.spec.json. Please create one at ' + rootDir + '/tsconfig.spec.json'
+        const errorMessage =
+            'Cannot locate a tsconfig.spec.json. Please create one at ' +
+            rootDir +
+            '/tsconfig.spec.json'
         throw new Error(errorMessage)
     }
 

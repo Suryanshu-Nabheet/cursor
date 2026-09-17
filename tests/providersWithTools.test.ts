@@ -70,7 +70,10 @@ describe('tool streaming provider harness', () => {
                         parameters: {
                             type: 'object',
                             properties: {
-                                path: { type: 'string', description: 'File path' },
+                                path: {
+                                    type: 'string',
+                                    description: 'File path',
+                                },
                             },
                             required: ['path'],
                         },
@@ -131,7 +134,10 @@ describe('tool streaming provider harness', () => {
                         parameters: {
                             type: 'object',
                             properties: {
-                                path: { type: 'string', description: 'File path' },
+                                path: {
+                                    type: 'string',
+                                    description: 'File path',
+                                },
                             },
                             required: ['path'],
                         },
@@ -180,7 +186,9 @@ Let me know if you need any adjustments!`
             expect(toolCalls[0].arguments.content).toContain('<!DOCTYPE html>')
             expect(cleanText).not.toContain('write_file')
             expect(cleanText).not.toContain('```json')
-            expect(cleanText).toContain('I will create the portfolio website for you now.')
+            expect(cleanText).toContain(
+                'I will create the portfolio website for you now.'
+            )
         })
 
         it('extracts raw unfenced JSON tool call and returns empty cleanText when no other prose exists', () => {
@@ -219,7 +227,9 @@ Let me know if you need any adjustments!`
             expect(toolCalls).toHaveLength(1)
             expect(toolCalls[0].name).toBe('write_file')
             expect(toolCalls[0].arguments.path).toBe('index.html')
-            expect(toolCalls[0].arguments.content).toContain('<h1>Portfolio</h1>')
+            expect(toolCalls[0].arguments.content).toContain(
+                '<h1>Portfolio</h1>'
+            )
         })
 
         it('extracts multiple sequential tool calls from output', () => {
@@ -239,7 +249,8 @@ Let me know if you need any adjustments!`
         })
 
         it('extracts write_file tool call with backtick multiline content', () => {
-            const raw = '```json\n{\n  "name": "write_file",\n  "arguments": {\n    "path": "index.html",\n    "content": `<!DOCTYPE html>\n<html>\n<body><h1>Hello</h1></body>\n</html>`\n  }\n}\n```'
+            const raw =
+                '```json\n{\n  "name": "write_file",\n  "arguments": {\n    "path": "index.html",\n    "content": `<!DOCTYPE html>\n<html>\n<body><h1>Hello</h1></body>\n</html>`\n  }\n}\n```'
 
             const { toolCalls, cleanText } = extractJsonToolCalls(raw)
 
@@ -251,7 +262,8 @@ Let me know if you need any adjustments!`
         })
 
         it('converts edit_file with content to write_file', () => {
-            const raw = '```json\n{\n  "name": "edit_file",\n  "arguments": {\n    "path": "style.css",\n    "content": "body { margin: 0; }"\n  }\n}\n```'
+            const raw =
+                '```json\n{\n  "name": "edit_file",\n  "arguments": {\n    "path": "style.css",\n    "content": "body { margin: 0; }"\n  }\n}\n```'
 
             const { toolCalls } = extractJsonToolCalls(raw)
 

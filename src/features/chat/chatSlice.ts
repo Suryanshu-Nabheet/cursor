@@ -215,7 +215,8 @@ export const chatSlice = createSlice({
                     procedingCode: payload.procedingCode,
                     currentSelection: payload.currentSelection,
                     selection: payload.selection,
-                    msgType: chatState.msgType ?? existing?.msgType ?? 'freeform',
+                    msgType:
+                        chatState.msgType ?? existing?.msgType ?? 'freeform',
                 }
                 chatState.pos = payload.pos
                 chatState.commandBarHistoryIndex = -1
@@ -313,7 +314,9 @@ export const chatSlice = createSlice({
             }
 
             try {
-                posthog.capture('Opened Command Bar', { type: chatState.msgType })
+                posthog.capture('Opened Command Bar', {
+                    type: chatState.msgType,
+                })
                 posthog.capture('Opened ' + chatState.msgType, {})
             } catch {
                 // analytics optional

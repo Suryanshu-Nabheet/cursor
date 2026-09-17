@@ -70,8 +70,8 @@ function ServerRow({ languageName }: { languageName: string }) {
                             running
                                 ? 'bg-emerald-500'
                                 : installed
-                                  ? 'bg-amber-500'
-                                  : 'bg-[var(--ui-border)]'
+                                ? 'bg-amber-500'
+                                : 'bg-[var(--ui-border)]'
                         )}
                     />
                     <div className="min-w-0">
@@ -82,10 +82,10 @@ function ServerRow({ languageName }: { languageName: string }) {
                             {busy
                                 ? 'Working…'
                                 : running
-                                  ? 'Running'
-                                  : installed
-                                    ? 'Installed · stopped'
-                                    : 'Not installed'}
+                                ? 'Running'
+                                : installed
+                                ? 'Installed · stopped'
+                                : 'Not installed'}
                         </span>
                     </div>
                 </div>
@@ -129,9 +129,7 @@ function ServerRow({ languageName }: { languageName: string }) {
                     </button>
                 )}
             </div>
-            {error && (
-                <p className="text-xs text-red-400 px-1">{error}</p>
-            )}
+            {error && <p className="text-xs text-red-400 px-1">{error}</p>}
         </div>
     )
 }

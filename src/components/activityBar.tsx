@@ -171,8 +171,7 @@ export const ActivityBar = () => {
         const next = pinned.includes(id)
             ? pinned.filter((p) => p !== id)
             : [...pinned, id]
-        const safe =
-            next.length === 0 ? (['filetree'] as ActivityTab[]) : next
+        const safe = next.length === 0 ? (['filetree'] as ActivityTab[]) : next
         dispatch(changeSettings({ pinnedSidebarViews: safe }))
     }
 

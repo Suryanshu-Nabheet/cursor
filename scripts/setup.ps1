@@ -61,17 +61,18 @@ Print-Info "Cleaning old build artifacts..."
 & "$Root\scripts\clean.ps1"
 
 Print-Info "Installing npm dependencies..."
-try {
-    npm ci
-    if ($LASTEXITCODE -ne 0) {
-        npm install
-    }
-    if ($LASTEXITCODE -eq 0) {
-        Print-Success "Dependencies installed successfully"
-    } else {
-        throw "npm install failed"
-    }
-} catch {
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+npm ci
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "npm ci failed, falling back to npm install..." -ForegroundColor Yellow
+    npm install
+}
+$ErrorActionPreference = $prevEAP
+
+if ($LASTEXITCODE -eq 0) {
+    Print-Success "Dependencies installed successfully"
+} else {
     Print-Error "Failed to install dependencies"
     Write-Host "Try removing node_modules and package-lock.json, then run npm install"
     exit 1

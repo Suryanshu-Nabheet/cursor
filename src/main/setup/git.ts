@@ -279,11 +279,7 @@ export default function setupGitIpcs() {
     ipcMain.handle('git_diff', async (event, { rootPath, file, mode }) => {
         try {
             const diffMode =
-                mode === 'staged'
-                    ? '--cached'
-                    : mode === 'head'
-                    ? 'HEAD'
-                    : ''
+                mode === 'staged' ? '--cached' : mode === 'head' ? 'HEAD' : ''
             const fileArg = file ? `-- "${file}"` : ''
             const { stdout } = await exec(`git diff ${diffMode} ${fileArg}`, {
                 cwd: rootPath,

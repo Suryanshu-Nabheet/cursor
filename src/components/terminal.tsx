@@ -10,7 +10,12 @@ import { FullState } from '../features/window/state'
 import * as gs from '../features/globalSlice'
 import * as ssel from '../features/settings/settingsSelectors'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faTimes, faChevronUp, faPlus, faTerminal } from '@fortawesome/free-solid-svg-icons'
+import {
+    faTimes,
+    faChevronUp,
+    faPlus,
+    faTerminal,
+} from '@fortawesome/free-solid-svg-icons'
 import { throttleCallback } from './componentUtils'
 
 interface TerminalSession {
@@ -22,13 +27,19 @@ interface TerminalSession {
     disposed: boolean
     exited: boolean
     containerRef: React.RefObject<HTMLDivElement>
-    dataHandler: ((_: any, payload: { id: string; data: string }) => void) | null
-    exitHandler: ((_: any, payload: { id: string; exitCode: number }) => void) | null
+    dataHandler:
+        | ((_: any, payload: { id: string; data: string }) => void)
+        | null
+    exitHandler:
+        | ((_: any, payload: { id: string; exitCode: number }) => void)
+        | null
 }
 
 let sessionCounter = 1
 
-function createSession(): Omit<TerminalSession, 'containerRef'> & { containerRef: React.RefObject<HTMLDivElement> } {
+function createSession(): Omit<TerminalSession, 'containerRef'> & {
+    containerRef: React.RefObject<HTMLDivElement>
+} {
     return {
         id: `session-${Date.now()}-${sessionCounter}`,
         label: `bash ${sessionCounter++}`,
@@ -54,7 +65,9 @@ export const BottomTerminal: React.FC = () => {
         (state: any) => state.extensionsState.availableThemes
     )
 
-    const [sessions, setSessions] = useState<TerminalSession[]>(() => [createSession() as TerminalSession])
+    const [sessions, setSessions] = useState<TerminalSession[]>(() => [
+        createSession() as TerminalSession,
+    ])
     const [activeSessionId, setActiveSessionId] = useState<string>(() => '')
     const sessionsRef = useRef<TerminalSession[]>([])
 
@@ -73,7 +86,7 @@ export const BottomTerminal: React.FC = () => {
     }, [sessions])
 
     const getActiveSession = useCallback(() => {
-        return sessionsRef.current.find(s => s.id === activeSessionId) || null
+        return sessionsRef.current.find((s) => s.id === activeSessionId) || null
     }, [activeSessionId])
 
     const getTerminalTheme = useCallback(() => {
@@ -109,149 +122,178 @@ export const BottomTerminal: React.FC = () => {
         }
     }, [])
 
-    const fitSession = useCallback((session: TerminalSession) => {
-        if (!session.fitAddon || !session.containerRef.current || !isOpen) return
-        try {
-            session.fitAddon.fit()
-            const dims = session.fitAddon.proposeDimensions()
-            if (dims && dims.cols > 0 && dims.rows > 0 && session.terminalId) {
-                connector.terminalResize(session.terminalId, dims.cols, dims.rows)
-            }
-        } catch (e) {
-            console.warn('[terminal] fit failed', e)
-        }
-    }, [isOpen])
-
-    const initializeSession = useCallback(async (session: TerminalSession) => {
-        if (session.terminalInstance || !session.containerRef.current) return
-
-        const term = new Terminal({
-            theme: getTerminalTheme(),
-            fontFamily: settings.fontFamily || "'JetBrains Mono', monospace",
-            fontSize: parseInt(settings.fontSize || '13'),
-            lineHeight: 1.4,
-            cursorBlink: true,
-            cursorStyle: 'block',
-            allowTransparency: false,
-        })
-
-        const fitAddon = new FitAddon()
-        const linkAddon = new WebLinksAddon((e: Event, url: string) => {
-            e.preventDefault()
-            connector.terminalClickLink(url)
-        })
-        const searchAddon = new SearchAddon()
-
-        term.loadAddon(fitAddon)
-        term.loadAddon(linkAddon)
-        term.loadAddon(searchAddon)
-
-        term.open(session.containerRef.current)
-
-        // Allow global IDE shortcuts (Cmd+J, Cmd+L, Cmd+`, Cmd+P, etc.) to pass through xterm
-        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-            const isCmdOrCtrl = e.metaKey || e.ctrlKey
-            if (isCmdOrCtrl) {
-                const key = e.key.toLowerCase()
-                if (
-                    key === 'j' ||
-                    key === '`' ||
-                    key === 'l' ||
-                    key === 'b' ||
-                    key === 'p' ||
-                    key === 'k' ||
-                    key === 'e' ||
-                    key === 'f' ||
-                    key === ',' ||
-                    e.code === 'KeyJ' ||
-                    e.code === 'Backquote' ||
-                    e.code === 'KeyL'
-                ) {
-                    return false
-                }
-            }
-            return true
-        })
-
-        // Assign to session
-        session.terminalInstance = term
-        session.fitAddon = fitAddon
-
-        try {
-            const projectRoot =
-                rootPath ||
-                (await connector.getProject().catch(() => null))?.defaultFolder
-            const result: { id: string } = await connector.terminalCreate(
-                80,
-                24,
-                projectRoot || undefined
-            )
-            if (session.disposed) {
-                await connector.terminalKill(result.id)
-                term.dispose()
+    const fitSession = useCallback(
+        (session: TerminalSession) => {
+            if (!session.fitAddon || !session.containerRef.current || !isOpen)
                 return
-            }
-            session.terminalId = result.id
-
-            term.onData((data: string) => {
-                if (!session.exited && !session.disposed) {
-                    connector.terminalInto(result.id, data)
+            try {
+                session.fitAddon.fit()
+                const dims = session.fitAddon.proposeDimensions()
+                if (
+                    dims &&
+                    dims.cols > 0 &&
+                    dims.rows > 0 &&
+                    session.terminalId
+                ) {
+                    connector.terminalResize(
+                        session.terminalId,
+                        dims.cols,
+                        dims.rows
+                    )
                 }
+            } catch (e) {
+                console.warn('[terminal] fit failed', e)
+            }
+        },
+        [isOpen]
+    )
+
+    const initializeSession = useCallback(
+        async (session: TerminalSession) => {
+            if (session.terminalInstance || !session.containerRef.current)
+                return
+
+            const term = new Terminal({
+                theme: getTerminalTheme(),
+                fontFamily:
+                    settings.fontFamily || "'JetBrains Mono', monospace",
+                fontSize: parseInt(settings.fontSize || '13'),
+                lineHeight: 1.4,
+                cursorBlink: true,
+                cursorStyle: 'block',
+                allowTransparency: false,
             })
 
-            const dataHandler = (_: any, payload: { id: string; data: string }) => {
-                if (term && session.terminalId === payload.id) {
-                    try {
-                        term.write(payload.data)
-                    } catch (e) {
-                        console.warn('[terminal] write failed', e)
+            const fitAddon = new FitAddon()
+            const linkAddon = new WebLinksAddon((e: Event, url: string) => {
+                e.preventDefault()
+                connector.terminalClickLink(url)
+            })
+            const searchAddon = new SearchAddon()
+
+            term.loadAddon(fitAddon)
+            term.loadAddon(linkAddon)
+            term.loadAddon(searchAddon)
+
+            term.open(session.containerRef.current)
+
+            // Allow global IDE shortcuts (Cmd+J, Cmd+L, Cmd+`, Cmd+P, etc.) to pass through xterm
+            term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+                const isCmdOrCtrl = e.metaKey || e.ctrlKey
+                if (isCmdOrCtrl) {
+                    const key = e.key.toLowerCase()
+                    if (
+                        key === 'j' ||
+                        key === '`' ||
+                        key === 'l' ||
+                        key === 'b' ||
+                        key === 'p' ||
+                        key === 'k' ||
+                        key === 'e' ||
+                        key === 'f' ||
+                        key === ',' ||
+                        e.code === 'KeyJ' ||
+                        e.code === 'Backquote' ||
+                        e.code === 'KeyL'
+                    ) {
+                        return false
                     }
                 }
-            }
+                return true
+            })
 
-            const exitHandler = (_: any, payload: { id: string; exitCode: number }) => {
-                if (session.terminalId === payload.id) {
-                    session.exited = true
-                    try {
-                        term.writeln('\r\n\x1b[31mProcess exited. Close this tab or create a new terminal.\x1b[0m')
-                    } catch (e) {
-                        console.warn('[terminal] exit message failed', e)
+            // Assign to session
+            session.terminalInstance = term
+            session.fitAddon = fitAddon
+
+            try {
+                const projectRoot =
+                    rootPath ||
+                    (await connector.getProject().catch(() => null))
+                        ?.defaultFolder
+                const result: { id: string } = await connector.terminalCreate(
+                    80,
+                    24,
+                    projectRoot || undefined
+                )
+                if (session.disposed) {
+                    await connector.terminalKill(result.id)
+                    term.dispose()
+                    return
+                }
+                session.terminalId = result.id
+
+                term.onData((data: string) => {
+                    if (!session.exited && !session.disposed) {
+                        connector.terminalInto(result.id, data)
+                    }
+                })
+
+                const dataHandler = (
+                    _: any,
+                    payload: { id: string; data: string }
+                ) => {
+                    if (term && session.terminalId === payload.id) {
+                        try {
+                            term.write(payload.data)
+                        } catch (e) {
+                            console.warn('[terminal] write failed', e)
+                        }
                     }
                 }
+
+                const exitHandler = (
+                    _: any,
+                    payload: { id: string; exitCode: number }
+                ) => {
+                    if (session.terminalId === payload.id) {
+                        session.exited = true
+                        try {
+                            term.writeln(
+                                '\r\n\x1b[31mProcess exited. Close this tab or create a new terminal.\x1b[0m'
+                            )
+                        } catch (e) {
+                            console.warn('[terminal] exit message failed', e)
+                        }
+                    }
+                }
+
+                connector.registerIncData(dataHandler)
+                connector.registerTerminalExited(exitHandler)
+                session.dataHandler = dataHandler
+                session.exitHandler = exitHandler
+
+                setTimeout(() => {
+                    fitSession(session)
+                    term.focus()
+                }, 100)
+            } catch (e) {
+                console.warn('[terminal] create failed', e)
+                term.writeln(
+                    '\r\n\x1b[31mFailed to create terminal session.\x1b[0m'
+                )
             }
 
-            connector.registerIncData(dataHandler)
-            connector.registerTerminalExited(exitHandler)
-            session.dataHandler = dataHandler
-            session.exitHandler = exitHandler
-
-            setTimeout(() => {
-                fitSession(session)
-                term.focus()
-            }, 100)
-        } catch (e) {
-            console.warn('[terminal] create failed', e)
-            term.writeln('\r\n\x1b[31mFailed to create terminal session.\x1b[0m')
-        }
-
-        // Update state with initialized session
-        setSessions(prev =>
-            prev.map(s =>
-                s.id === session.id
-                    ? {
-                          ...s,
-                          terminalInstance: term,
-                          fitAddon,
-                          terminalId: session.terminalId,
-                          dataHandler: session.dataHandler,
-                          exitHandler: session.exitHandler,
-                          disposed: session.disposed,
-                          exited: session.exited,
-                      }
-                    : s
+            // Update state with initialized session
+            setSessions((prev) =>
+                prev.map((s) =>
+                    s.id === session.id
+                        ? {
+                              ...s,
+                              terminalInstance: term,
+                              fitAddon,
+                              terminalId: session.terminalId,
+                              dataHandler: session.dataHandler,
+                              exitHandler: session.exitHandler,
+                              disposed: session.disposed,
+                              exited: session.exited,
+                          }
+                        : s
+                )
             )
-        )
-    }, [settings, getTerminalTheme, fitSession, rootPath])
+        },
+        [settings, getTerminalTheme, fitSession, rootPath]
+    )
 
     // Initialize sessions when panel opens
     useEffect(() => {
@@ -296,7 +338,7 @@ export const BottomTerminal: React.FC = () => {
         })
 
         // Observe all session containers
-        sessionsRef.current.forEach(s => {
+        sessionsRef.current.forEach((s) => {
             if (s.containerRef.current) observer.observe(s.containerRef.current)
         })
         observerRef.current = observer
@@ -309,9 +351,10 @@ export const BottomTerminal: React.FC = () => {
 
     // Update font/theme in all sessions when settings change
     useEffect(() => {
-        sessionsRef.current.forEach(session => {
+        sessionsRef.current.forEach((session) => {
             if (!session.terminalInstance) return
-            const fontFamily = settings.fontFamily || "'JetBrains Mono', monospace"
+            const fontFamily =
+                settings.fontFamily || "'JetBrains Mono', monospace"
             const fontSize = parseInt(settings.fontSize || '13')
             session.terminalInstance.options.fontFamily = fontFamily
             session.terminalInstance.options.fontSize = fontSize
@@ -324,13 +367,14 @@ export const BottomTerminal: React.FC = () => {
         })
     }, [settings, availableThemes, getTerminalTheme])
 
-
     // Drag resize
     useEffect(() => {
         const handleMove = throttleCallback((e: MouseEvent) => {
             if (!isDragging) return
             const newHeight = window.innerHeight - e.clientY
-            setHeight(Math.max(100, Math.min(newHeight, window.innerHeight - 50)))
+            setHeight(
+                Math.max(100, Math.min(newHeight, window.innerHeight - 50))
+            )
         }, 10)
 
         const handleUp = () => setIsDragging(false)
@@ -349,18 +393,34 @@ export const BottomTerminal: React.FC = () => {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            sessionsRef.current.forEach(session => {
+            sessionsRef.current.forEach((session) => {
                 if (session.dataHandler) {
-                    try { connector.deregisterIncData(session.dataHandler) } catch (e) { console.warn('[terminal] deregister data failed', e) }
+                    try {
+                        connector.deregisterIncData(session.dataHandler)
+                    } catch (e) {
+                        console.warn('[terminal] deregister data failed', e)
+                    }
                 }
                 if (session.exitHandler) {
-                    try { connector.deregisterTerminalExited(session.exitHandler) } catch (e) { console.warn('[terminal] deregister exit failed', e) }
+                    try {
+                        connector.deregisterTerminalExited(session.exitHandler)
+                    } catch (e) {
+                        console.warn('[terminal] deregister exit failed', e)
+                    }
                 }
                 if (session.terminalInstance) {
-                    try { session.terminalInstance.dispose() } catch (e) { console.warn('[terminal] dispose failed', e) }
+                    try {
+                        session.terminalInstance.dispose()
+                    } catch (e) {
+                        console.warn('[terminal] dispose failed', e)
+                    }
                 }
                 if (session.terminalId) {
-                    try { connector.terminalKill(session.terminalId) } catch (e) { console.warn('[terminal] kill failed', e) }
+                    try {
+                        connector.terminalKill(session.terminalId)
+                    } catch (e) {
+                        console.warn('[terminal] kill failed', e)
+                    }
                 }
             })
             if (observerRef.current) {
@@ -371,7 +431,7 @@ export const BottomTerminal: React.FC = () => {
 
     const addNewSession = useCallback(() => {
         const newSession = createSession() as TerminalSession
-        setSessions(prev => [...prev, newSession])
+        setSessions((prev) => [...prev, newSession])
         setActiveSessionId(newSession.id)
         // Initialize the new session after it mounts
         setTimeout(async () => {
@@ -379,47 +439,74 @@ export const BottomTerminal: React.FC = () => {
         }, 100)
     }, [initializeSession])
 
-    const closeSession = useCallback((sessionId: string, e: React.MouseEvent) => {
-        e.stopPropagation()
-        setSessions(prev => {
-            const sessionToClose = prev.find(s => s.id === sessionId)
-            if (sessionToClose) {
-                sessionToClose.disposed = true
-                // Cleanup
-                if (sessionToClose.dataHandler) {
-                    try { connector.deregisterIncData(sessionToClose.dataHandler) } catch (e) { console.warn('[terminal] deregister data failed', e) }
+    const closeSession = useCallback(
+        (sessionId: string, e: React.MouseEvent) => {
+            e.stopPropagation()
+            setSessions((prev) => {
+                const sessionToClose = prev.find((s) => s.id === sessionId)
+                if (sessionToClose) {
+                    sessionToClose.disposed = true
+                    // Cleanup
+                    if (sessionToClose.dataHandler) {
+                        try {
+                            connector.deregisterIncData(
+                                sessionToClose.dataHandler
+                            )
+                        } catch (e) {
+                            console.warn('[terminal] deregister data failed', e)
+                        }
+                    }
+                    if (sessionToClose.exitHandler) {
+                        try {
+                            connector.deregisterTerminalExited(
+                                sessionToClose.exitHandler
+                            )
+                        } catch (e) {
+                            console.warn('[terminal] deregister exit failed', e)
+                        }
+                    }
+                    if (sessionToClose.terminalInstance) {
+                        try {
+                            sessionToClose.terminalInstance.dispose()
+                        } catch (e) {
+                            console.warn('[terminal] dispose failed', e)
+                        }
+                    }
+                    if (sessionToClose.terminalId) {
+                        try {
+                            connector.terminalKill(sessionToClose.terminalId)
+                        } catch (e) {
+                            console.warn('[terminal] kill failed', e)
+                        }
+                    }
                 }
-                if (sessionToClose.exitHandler) {
-                    try { connector.deregisterTerminalExited(sessionToClose.exitHandler) } catch (e) { console.warn('[terminal] deregister exit failed', e) }
+
+                const newSessions = prev.filter((s) => s.id !== sessionId)
+
+                if (newSessions.length === 0) {
+                    // Close the terminal panel if no sessions remain
+                    dispatch(gs.closeTerminal())
+                    return []
                 }
-                if (sessionToClose.terminalInstance) {
-                    try { sessionToClose.terminalInstance.dispose() } catch (e) { console.warn('[terminal] dispose failed', e) }
+
+                return newSessions
+            })
+
+            // Pick another session to activate
+            setActiveSessionId((prev) => {
+                if (prev === sessionId) {
+                    const remaining = sessionsRef.current.filter(
+                        (s) => s.id !== sessionId
+                    )
+                    return remaining.length > 0
+                        ? remaining[remaining.length - 1].id
+                        : ''
                 }
-                if (sessionToClose.terminalId) {
-                    try { connector.terminalKill(sessionToClose.terminalId) } catch (e) { console.warn('[terminal] kill failed', e) }
-                }
-            }
-
-            const newSessions = prev.filter(s => s.id !== sessionId)
-
-            if (newSessions.length === 0) {
-                // Close the terminal panel if no sessions remain
-                dispatch(gs.closeTerminal())
-                return []
-            }
-
-            return newSessions
-        })
-
-        // Pick another session to activate
-        setActiveSessionId(prev => {
-            if (prev === sessionId) {
-                const remaining = sessionsRef.current.filter(s => s.id !== sessionId)
-                return remaining.length > 0 ? remaining[remaining.length - 1].id : ''
-            }
-            return prev
-        })
-    }, [dispatch])
+                return prev
+            })
+        },
+        [dispatch]
+    )
 
     if (!isOpen) return null
 
@@ -440,12 +527,21 @@ export const BottomTerminal: React.FC = () => {
                     {sessions.map((session) => (
                         <div
                             key={session.id}
-                            className={`terminal-tab ${session.id === activeSessionId ? 'terminal-tab--active' : ''}`}
+                            className={`terminal-tab ${
+                                session.id === activeSessionId
+                                    ? 'terminal-tab--active'
+                                    : ''
+                            }`}
                             onClick={() => setActiveSessionId(session.id)}
                             title={session.label}
                         >
-                            <FontAwesomeIcon icon={faTerminal} className="terminal-tab-icon" />
-                            <span className="terminal-tab-label">{session.label}</span>
+                            <FontAwesomeIcon
+                                icon={faTerminal}
+                                className="terminal-tab-icon"
+                            />
+                            <span className="terminal-tab-label">
+                                {session.label}
+                            </span>
                             {sessions.length > 1 && (
                                 <button
                                     className="terminal-tab-close"
@@ -472,7 +568,15 @@ export const BottomTerminal: React.FC = () => {
                         onClick={() => setIsMaximized(!isMaximized)}
                         title={isMaximized ? 'Restore' : 'Maximize'}
                     >
-                        <FontAwesomeIcon icon={faChevronUp} style={{ transform: isMaximized ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                        <FontAwesomeIcon
+                            icon={faChevronUp}
+                            style={{
+                                transform: isMaximized
+                                    ? 'rotate(180deg)'
+                                    : 'none',
+                                transition: 'transform 0.2s',
+                            }}
+                        />
                     </button>
                     <button
                         className="terminal-action-btn"
@@ -489,7 +593,15 @@ export const BottomTerminal: React.FC = () => {
                         key={session.id}
                         ref={session.containerRef}
                         className="terminal-instance-wrapper"
-                        style={{ display: session.id === activeSessionId ? 'flex' : 'none', flexDirection: 'column', flex: 1, height: '100%' }}
+                        style={{
+                            display:
+                                session.id === activeSessionId
+                                    ? 'flex'
+                                    : 'none',
+                            flexDirection: 'column',
+                            flex: 1,
+                            height: '100%',
+                        }}
                     />
                 ))}
             </div>

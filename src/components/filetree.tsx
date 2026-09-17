@@ -57,18 +57,29 @@ export function getIconElement(fname: string) {
     if (ext === 'sql' || ext === 'db')
         return <Codicon name="database" className="file-icon icon--config" />
 
-    return <Codicon name="file" className="file-icon" style={{ opacity: 0.4 }} />
+    return (
+        <Codicon name="file" className="file-icon" style={{ opacity: 0.4 }} />
+    )
 }
 
-function getFolderIcon(name: string, isOpen: boolean): { codiconName: string; className: string } {
+function getFolderIcon(
+    name: string,
+    isOpen: boolean
+): { codiconName: string; className: string } {
     const lname = name.toLowerCase()
 
     if (lname === '.github' || lname === '.git')
-        return { codiconName: isOpen ? 'folder-opened' : 'folder', className: 'icon--config' }
+        return {
+            codiconName: isOpen ? 'folder-opened' : 'folder',
+            className: 'icon--config',
+        }
     if (lname === 'node_modules' || lname === 'dist' || lname === 'build')
         return { codiconName: 'package', className: 'icon--config' }
     if (lname === 'src')
-        return { codiconName: isOpen ? 'folder-opened' : 'folder', className: 'icon--ts' }
+        return {
+            codiconName: isOpen ? 'folder-opened' : 'folder',
+            className: 'icon--ts',
+        }
     if (lname === 'components')
         return { codiconName: 'extensions', className: 'icon--react' }
     if (lname === 'assets' || lname === 'public')
@@ -78,7 +89,10 @@ function getFolderIcon(name: string, isOpen: boolean): { codiconName: string; cl
     if (lname === 'theme' || lname === 'styles')
         return { codiconName: 'symbol-color', className: 'icon--css' }
 
-    return { codiconName: isOpen ? 'folder-opened' : 'folder', className: 'icon--folder' }
+    return {
+        codiconName: isOpen ? 'folder-opened' : 'folder',
+        className: 'icon--folder',
+    }
 }
 
 function File({ fid }: { fid: number }) {
@@ -245,7 +259,10 @@ function Folder({ fid }: { fid: number }) {
                             dispatch(gs.newFolder({ parentFolderId: fid }))
                         }}
                     >
-                        <Codicon name="new-folder" style={{ fontSize: '12px' }} />
+                        <Codicon
+                            name="new-folder"
+                            style={{ fontSize: '12px' }}
+                        />
                     </div>
                 </div>
             </div>
@@ -329,7 +346,10 @@ export function FileTree() {
                         title="New Folder"
                         type="button"
                     >
-                        <Codicon name="new-folder" style={{ fontSize: '13px' }} />
+                        <Codicon
+                            name="new-folder"
+                            style={{ fontSize: '13px' }}
+                        />
                     </button>
                     <button
                         className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--ui-hover)] text-[var(--ui-fg-muted)] hover:text-[var(--ui-fg)] transition-colors"
